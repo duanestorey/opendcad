@@ -112,3 +112,31 @@ target_link_libraries(opendcad PRIVATE ${OpenCASCADE_LIBRARIES})
 # install (optional)
 # --------------------------------------------------------------------------------------
 # install(TARGETS opendcad DESTINATION bin)
+
+
+# --- Viewer (GLFW + OpenGL) ---
+find_package(PkgConfig REQUIRED)
+# Homebrew installs glfw as pkgconfig "glfw3" or "glfw"; try both:
+pkg_check_modules(GLFW QUIET IMPORTED_TARGET glfw3)
+if (NOT GLFW_FOUND)
+  pkg_check_modules(GLFW REQUIRED IMPORTED_TARGET glfw)
+endif()
+
+add_executable(opendcad_viewer
+  viewer/viewer_main.cpp
+)
+
+# macOS OpenGL framework + GLFW
+if (APPLE)
+  target_link_libraries(opendcad_viewer PRIVATE
+    PkgConfig::GLFW
+    "-framework OpenGL"
+    "-framework Cocoa" "-framework IOKit" "-framework CoreVideo"
+  )
+else()
+  find_package(OpenGL REQUIRED)
+  target_link_libraries(opendcad_viewer PRIVATE PkgConfig::GLFW OpenGL::GL)
+endif()
+
+target_compile_features(opendcad_viewer PRIVATE cxx_std_20)
+target_compile_options(opendcad_viewer PRIVATE -Wall -Wextra -Wpedantic)
