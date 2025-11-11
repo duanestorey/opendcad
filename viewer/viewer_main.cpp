@@ -694,8 +694,7 @@ glfwSetKeyCallback(win, [](GLFWwindow* w, int key, int /*scancode*/, int action,
         glDisableVertexAttribArray(1);
         glUseProgram(0);
 
-        glfwSwapBuffers(win);
-// ------- Screen-space overlay (bottom-right) -------
+        // ------- Screen-space overlay (bottom-right) -------
 {
     const float W = (float)w, H = (float)h;
     const float sx = (g_maxB.x - g_minB.x);
@@ -706,9 +705,9 @@ glfwSetKeyCallback(win, [](GLFWwindow* w, int key, int /*scancode*/, int action,
     char l1[128], l2[128], l3[128];
     std::snprintf(l1, sizeof(l1), "Triangles: %zu", triCount);
     std::snprintf(l2, sizeof(l2), "Size X: %.3f  Y: %.3f  Z: %.3f", sx, sy, sz);
-    std::snprintf(l3, sizeof(l3), "Units: mm   FOV: %.1f\u00B0", cam.fovy_deg);
+    std::snprintf(l3, sizeof(l3), "Units: mm   FOV: %.1f deg", cam.fovy_deg);
 
-    const float scale = 2.5f;                // ↑ bigger text
+    const float scale = 3.0f;                // bigger, Retina-friendly
     const float lineH = 12.0f * scale;
     float maxw = (float)std::max({ text_width_px(l1,scale),
                                    text_width_px(l2,scale),
@@ -719,31 +718,39 @@ glfwSetKeyCallback(win, [](GLFWwindow* w, int key, int /*scancode*/, int action,
     float x = W - boxW - 16.0f;
     float y = H - boxH - 16.0f;
 
-    // --- FULL STATE ISOLATION ---
-    // Unbind buffers + disable any vertex attrib arrays from the mesh path
+    // ——— FULL STATE ISOLATION (server + client) ———
     glUseProgram(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    // (macOS GL 2.1 doesn’t have VAOs by default; if you created one, bind 0 here)
-    // Disable any leftover GL vertex attrib arrays (safety)
     for (int i = 0; i < 8; ++i) glDisableVertexAttribArray(i);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-    // Save/restore enables & matrices so HUD can't flicker from shared state
-    glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_LINE_BIT | GL_DEPTH_BUFFER_BIT | GL_SCISSOR_BIT);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);              // save EVERYTHING (depth, blend, multisample, etc.)
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glDisable(GL_LIGHTING);
-    glDisable(GL_STENCIL_TEST);
     glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
     glDisable(GL_DITHER);
+    glDisable(GL_TEXTURE_1D);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_TEXTURE_3D);
+#ifdef GL_MULTISAMPLE
+    glDisable(GL_MULTISAMPLE);                     // MSAA can cause HUD shimmer on macOS
+#endif
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);  // ensure we’re actually writing color
 
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity(); glOrtho(0, W, H, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity();
 
     // Background panel
-    glColor4f(0.05f, 0.06f, 0.07f, 0.80f);
+    glColor4f(0.05f, 0.06f, 0.07f, 0.85f);
     glBegin(GL_QUADS);
         glVertex2f(x,       y);
         glVertex2f(x+boxW,  y);
@@ -761,16 +768,20 @@ glfwSetKeyCallback(win, [](GLFWwindow* w, int key, int /*scancode*/, int action,
     // Text (right-aligned)
     float tx = x + boxW - pad - maxw;
     float ty = y + pad + lineH;
+
     draw_text_screen(tx, ty - lineH*0.2f, l1, scale);
     draw_text_screen(tx, ty + lineH*0.8f, l2, scale);
     draw_text_screen(tx, ty + lineH*1.8f, l3, scale);
 
-    // Restore matrices & state
+    // Restore matrices & ALL state
     glMatrixMode(GL_MODELVIEW);  glPopMatrix();
     glMatrixMode(GL_PROJECTION); glPopMatrix();
     glPopAttrib();
 }
 // ------- end overlay -------
+
+        glfwSwapBuffers(win);
+
 
 glfwSwapBuffers(win);
 

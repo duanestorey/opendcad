@@ -18,13 +18,15 @@ find_package(antlr4-runtime CONFIG REQUIRED)
 add_executable(opendcad
     src/opendcad.cpp
     src/output.cpp
+    Src/shape.cpp
+  
 )
 
 # Warnings
 if (MSVC)
     target_compile_options(opendcad PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O2)
+    target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O3)
 endif()
 
 # Link the runtime

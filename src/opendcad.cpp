@@ -52,6 +52,8 @@
 #include <OSD.hxx>
 #include <Standard_Version.hxx>
 
+#include "Shape.h"
+
 
 const char VERSION[] = "1.00.00";
 
@@ -174,17 +176,19 @@ int main() {
     // ──────────────────────────────────────────────────────────────────────────────
 
     const std::string stepPath = "build/bin/opendcad_test.step";
-    const std::string stlPath  = "build/bin/opendcad_test.stl";
+    const std::string stlPath  = "build/bin/opendcad_test";
 
     auto t_start = Clock::now();
-
+     TopoDS_Shape model;
+/*
     // 1) Base plate
-    TopoDS_Shape base = BRepPrimAPI_MakeBox(100.0, 80.0, 8.0).Shape(); // (x,y,z dims)
+    TopoDS_Shape base = BRepPrimAPI_MakeBox(100.0, 80.0, 12.0).Shape(); // (x,y,z dims)
     // Add a gentle outer fillet to increase topology
-    base = fillet_all_edges(base, 2.0);
+    base = fillet_all_edges(base, 3.0);
 
     // 2) Four standoffs on the top face (z = 8.0)
-    TopoDS_Shape standoff = make_standoff(/*outerR*/ 4.0, /*height*/ 12.0, /*holeR*/ 1.75);
+    TopoDS_Shape standoff = make_standoff( 5.0, 12.0, 1.75);
+  
     const double inset = 10.0;
     const double bx = 100.0, by = 80.0, bz = 8.0;
 
@@ -218,10 +222,12 @@ int main() {
         }
         model = fuse.Shape();
     }
+        */
 
     // 3) Drill a small grid of lightening holes through the plate (more triangles)
-    const double grid_dx = 12.0, grid_dy = 12.0;
-    const int nx = 5, ny = 7;
+    /*
+    const double grid_dx = 10.0, grid_dy = 10.0;
+    const int nx = 7, ny = 7;
     const double holeR = 2.0;
     for (int ix = 0; ix < nx; ++ix) {
         for (int iy = 0; iy < ny; ++iy) {
@@ -235,10 +241,25 @@ int main() {
                 continue;
             }
             gp_Ax2 ax(gp_Pnt(cx, cy, 0.0), gp::DZ(), gp::DX());
-            TopoDS_Shape drill = BRepPrimAPI_MakeCylinder(ax, holeR, /*through*/ 20.0).Shape();
+             TopoDS_Shape drill = BRepPrimAPI_MakeCylinder(ax, holeR, 20.0).Shape();
+
+
             model = BRepAlgoAPI_Cut(model, drill).Shape();
         }
-    }
+    } 
+    */
+    using namespace opendcad;
+
+    ShapePtr cylinder = Shape::createCylinder( 54, 100 );
+    ShapePtr box = Shape::createBox( 100, 100, 20 );
+    ShapePtr box2 = Shape::createBox( 20, 75, 50 );
+    ShapePtr box3 = Shape::createBox( 40, 40, 10 );
+    box2->translate( 10, 50, -40 );
+
+    box->cut( cylinder );
+    box->fuse( box2 );
+    box->cut( box3 );
+    model = box->getShape();
 
     auto t_model_done = Clock::now();
 
@@ -256,14 +277,19 @@ int main() {
     }
     auto t_step_done = Clock::now();
 
-
     // 6) Write STL (tighter deflection for more triangles)
-    if (!write_stl(fixed, stlPath, /*deflection*/ 0.05, /*angle*/ 0.2, /*parallel*/ true)) {
+    if (!write_stl(fixed, stlPath + "_detailed.stl", /*deflection*/ 0.03, /*angle*/ 0.1, /*parallel*/ true)) {
         std::cerr << red << "STL export failed" << reset << "\n";
         return 1;
     }
+
     auto t_stl_done = Clock::now();
 
+     if (!write_stl(fixed, stlPath + "_rough.stl", /*deflection*/ 0.25, /*angle*/ 0.5, /*parallel*/ true)) {
+        std::cerr << red << "STL export failed" << reset << "\n";
+        return 1;
+    }
+    
     std::cout << green << "Wrote STEP: " << white << stepPath << reset << "\n";
     std::cout << green << "Wrote STL:  " << white << stlPath  << reset << "\n";
 
