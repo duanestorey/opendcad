@@ -1,0 +1,29 @@
+// Base bin with a fillet
+let bin = bin(80,120,20,2).fillet(0.5);
+
+// One battery, built via vector transforms
+let battery = cylinder(21/2, 70)
+  .translate([0, 0, -35])
+  .rotate([0, 90, 0])
+  .translate([0, 0, 12]);
+
+// Four-pack arrangement using vector translates
+let four = battery
+  .fuse( battery.translate([0, 22, 0]) )
+  .fuse( battery.translate([0, 44, 0]) )
+  .fuse( battery.translate([0, 66, 0]) )
+  .translate([0, -40, 0]);
+let fourBackup = four;
+
+// Corner offset piece with a vector translate for the inner cut
+let piece = cylinder(5, 20)
+  .cut( cylinder(4.8/2, 6).translate([0, 0, 14]) );
+
+// Place piece at corners, then fuse the battery pack
+let model = bin
+  .placeCorners(piece, 34, 54)
+  .fuse(four);
+
+// Multiple logical exports; host will write both STEP/STL per id
+export model as bin;
+export model.cut(piece) as bin_with_cut;

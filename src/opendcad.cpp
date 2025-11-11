@@ -12,6 +12,7 @@
 #include "antlr4-runtime.h"
 #include "OpenDCADLexer.h"
 #include "OpenDCADParser.h"
+#include "Listener.h"
 
 // OpenCascade
 #include <gp_Ax2.hxx>
@@ -105,10 +106,10 @@ static bool write_step(const TopoDS_Shape& s, const std::string& path) {
     return w.Write(path.c_str()) == IFSelect_RetDone;
 }
 
-static bool write_stl(const TopoDS_Shape& s, const std::string& path,
+ bool write_stl(const TopoDS_Shape& s, const std::string& path,
                       double deflection = 0.3, double angle = 0.5, bool parallel = true) {
     // Mesh the B-Rep (needed before STL export)
-    BRepMesh_IncrementalMesh mesher(s, deflection, /*isRelative*/ false, angle, parallel);
+    BRepMesh_IncrementalMesh mesher(s, deflection, false, angle, parallel);
     mesher.Perform();
     if (!mesher.IsDone()) return false;
 
@@ -155,6 +156,13 @@ static TopoDS_Shape place_at(const TopoDS_Shape& local, double x, double y, doub
     return BRepBuilderAPI_Transform(local, t).Shape();
 }
 
+std::string loadFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file) throw std::runtime_error("Failed to open file: " + path);
+    return std::string((std::istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>());
+}
+
 int main() {
     std::cout << green << "OpenDCAD version [" << white << VERSION << green
               << "]  OCCT " << white << OCC_VERSION_COMPLETE << reset << "\n";
@@ -164,7 +172,9 @@ int main() {
     using namespace antlr4;
     using namespace OpenDCAD;
     {
-        std::string src = "Box(w:100,h:80,d:8).fillet(r:2);";
+      //  std::string src = "Box(w:100,h:80,d:8).fillet(r:2);";
+        std::string src = loadFile( "./examples/battery.dcad" );
+  
         ANTLRInputStream input(src);
         OpenDCADLexer lexer(&input);
         CommonTokenStream tokens(&lexer);
@@ -172,6 +182,9 @@ int main() {
         auto* tree = parser.program(); // start rule was 'prog' in your grammar
         std::cout << cyan << "ANTLR parse OK" << reset << "  →  "
                   << tree->toStringTree(&parser) << "\n";
+
+                   TraceVisitor tv;
+    tv.visit(tree);
     }
     // ──────────────────────────────────────────────────────────────────────────────
 
@@ -250,11 +263,18 @@ int main() {
     */
     using namespace opendcad;
 
-    ShapePtr cylinder1 = Shape::createCylinder( 58/2, 120 );
-    ShapePtr cylinder2 = Shape::createCylinder( 54/2, 120 );
+    ShapePtr bin = Shape::createBin( 80, 120, 20, 2 );
+    bin = bin->fillet( 0.5 );
 
-    //ShapePtr newShape = cylinder1->cut( cylinder2 );
-    model = cylinder1->getShape();
+    ShapePtr battery = Shape::createCylinder( 21/2, 70 )->z( -35 )->rotate( 0, 90, 0 )->z( 12 );
+    ShapePtr fourBatteries = battery->fuse( battery->translate( 0, 22, 0 ) )->fuse( battery->translate( 0, 44, 0 ) )->fuse( battery->translate( 0, 66, 0 ) );
+
+    ShapePtr offset = Shape::createCylinder( 5, 20 )->cut( Shape::createCylinder( 4.8/2, 6 )->z( 14 ) );
+    bin = bin->placeCorners( offset, 34, 54 );
+
+    bin = bin->fuse( fourBatteries->translate( 0, -40, 0 ) );
+
+    model = bin->getShape();
 
     auto t_model_done = Clock::now();
 
@@ -262,6 +282,7 @@ int main() {
     Handle(ShapeFix_Shape) fixer = new ShapeFix_Shape(model);
     fixer->Perform();
     TopoDS_Shape fixed = fixer->Shape();
+    TopoDS_Shape fixed2 = fixed;
 
     auto t_heal_done = Clock::now();
 
@@ -272,18 +293,21 @@ int main() {
     }
     auto t_step_done = Clock::now();
 
+    if (!write_stl(fixed2, stlPath + "_rough.stl", 0.05, 0.5, true)) {
+        std::cerr << red << "STL export failed" << reset << "\n";
+        return 1;
+    }
+
+
     // 6) Write STL (tighter deflection for more triangles)
-    if (!write_stl(fixed, stlPath + "_detailed.stl", /*deflection*/ 0.005, /*angle*/ 0.1, /*parallel*/ true)) {
+    if (!write_stl(fixed, stlPath + "_detailed.stl", 0.01, 0.1, true)) {
         std::cerr << red << "STL export failed" << reset << "\n";
         return 1;
     }
 
     auto t_stl_done = Clock::now();
 
-     if (!write_stl(fixed, stlPath + "_rough.stl", /*deflection*/ 0.25, /*angle*/ 0.5, /*parallel*/ true)) {
-        std::cerr << red << "STL export failed" << reset << "\n";
-        return 1;
-    }
+
     
     std::cout << green << "Wrote STEP: " << white << stepPath << reset << "\n";
     std::cout << green << "Wrote STL:  " << white << stlPath  << reset << "\n";
