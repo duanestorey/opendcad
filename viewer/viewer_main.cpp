@@ -68,85 +68,67 @@ static int text_width_px(const char* s, float scale = 2.0f) {
     return int(std::strlen(s) * 7 * scale);
 }
 
+
+// OCC headers
+#include <StlAPI_Reader.hxx>
+#include <TopoDS_Shape.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS.hxx>
+#include <BRep_Tool.hxx>
+#include <Poly_Triangulation.hxx>
+#include <Poly_Triangle.hxx>
+#include <TopLoc_Location.hxx>
+#include <gp_Pnt.hxx>
+#include <gp_Vec.hxx>
+
+// std
+#include <vector>
+#include <string>
+#include <cstdio>
+
+
 // ───────────────────────────────────────────────────────────────────
 // STL structs + robust loader (binary + ASCII)
 // ───────────────────────────────────────────────────────────────────
 struct Vec3 { float x,y,z; };
 struct Tri  { Vec3 n, v0, v1, v2; };
 
+#include <RWStl.hxx>
+
 static bool load_stl(const char* path, std::vector<Tri>& out) {
-    struct stat st{};
-    if (stat(path, &st) != 0) { std::perror(("stat " + std::string(path)).c_str()); return false; }
-    const size_t fsize = static_cast<size_t>(st.st_size);
+    out.clear();
 
-    // Try binary first
+    Handle(Poly_Triangulation) mesh = RWStl::ReadFile(path);
+    if (mesh.IsNull() || mesh->NbTriangles() == 0)
     {
-        FILE* f = std::fopen(path, "rb");
-        if (!f) { std::perror(path); return false; }
-        unsigned char header[80];
-        if (std::fread(header, 1, 80, f) == 80) {
-            uint32_t ntri_hdr = 0;
-            if (std::fread(&ntri_hdr, 4, 1, f) == 1) {
-                const bool size_ok   = (fsize >= 84) && ((fsize - 84) % 50 == 0);
-                const uint32_t ncalc = size_ok ? uint32_t((fsize - 84) / 50) : 0;
-                const uint32_t ntri  = ncalc ? ncalc : ntri_hdr;
-                if (ntri > 0 && fsize >= 84 + size_t(ntri) * 50) {
-                    out.resize(ntri);
-                    bool ok = true;
-                    for (uint32_t i=0; i<ntri; ++i) {
-                        float data[12];
-                        if (std::fread(data, sizeof(float), 12, f) != 12) { ok = false; break; }
-                        uint16_t attr = 0;
-                        if (std::fread(&attr, 2, 1, f) != 1) { ok = false; break; }
-                        Tri t{};
-                        t.n  = {data[0], data[1], data[2]};
-                        t.v0 = {data[3], data[4], data[5]};
-                        t.v1 = {data[6], data[7], data[8]};
-                        t.v2 = {data[9], data[10], data[11]};
-                        out[i] = t;
-                    }
-                    std::fclose(f);
-                    if (ok) return true;
-                    out.clear();
-                }
-            }
-        }
-        std::fclose(f);
+        std::fprintf(stderr, "Failed to read STL or empty: %s\n", path);
+        return false;
     }
 
-    // ASCII fallback
-    {
-        FILE* f = std::fopen(path, "r");
-        if (!f) { std::perror(path); return false; }
+    const int nTris = mesh->NbTriangles();
+    out.reserve(static_cast<size_t>(nTris));
 
-        out.clear();
-        char line[512];
-        Tri cur{}; int vcount = 0; bool inFacet = false;
-        auto push_tri = [&](){ if (vcount == 3) out.push_back(cur); vcount = 0; inFacet = false; };
+    for (int i = 1; i <= nTris; ++i) {  // 1-based indexing
+        int i1, i2, i3;
+        mesh->Triangle(i).Get(i1, i2, i3);
 
-        while (std::fgets(line, sizeof(line), f)) {
-            char* p = line; while (*p==' ' || *p=='\t') ++p;
-            if (std::strncmp(p, "facet normal", 12) == 0) {
-                inFacet = true; vcount = 0;
-                std::sscanf(p, "facet normal %f %f %f", &cur.n.x, &cur.n.y, &cur.n.z);
-            } else if (inFacet && std::strncmp(p, "vertex", 6) == 0) {
-                float x,y,z;
-                if (std::sscanf(p, "vertex %f %f %f", &x, &y, &z) == 3) {
-                    if (vcount == 0) cur.v0 = {x,y,z};
-                    else if (vcount == 1) cur.v1 = {x,y,z};
-                    else if (vcount == 2) cur.v2 = {x,y,z};
-                    vcount++;
-                }
-            } else if (inFacet && std::strncmp(p, "endfacet", 8) == 0) {
-                push_tri();
-            }
-        }
-        std::fclose(f);
-        if (!out.empty()) return true;
+        const gp_Pnt& p1 = mesh->Node(i1);
+        const gp_Pnt& p2 = mesh->Node(i2);
+        const gp_Pnt& p3 = mesh->Node(i3);
+
+        gp_Vec n = gp_Vec(p1, p2).Crossed(gp_Vec(p1, p3));
+        if (n.SquareMagnitude() > 0.0) n.Normalize();
+
+        Tri t{};
+        t.n  = { (float)n.X(),  (float)n.Y(),  (float)n.Z()  };
+        t.v0 = { (float)p1.X(), (float)p1.Y(), (float)p1.Z() };
+        t.v1 = { (float)p2.X(), (float)p2.Y(), (float)p2.Z() };
+        t.v2 = { (float)p3.X(), (float)p3.Y(), (float)p3.Z() };
+        out.push_back(t);
     }
 
-    std::fprintf(stderr, "STL parse failed: neither binary nor ASCII recognized (size=%zu)\n", fsize);
-    return false;
+    return true;
 }
 
 // ───────────────────────────────────────────────────────────────────

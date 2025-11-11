@@ -25,6 +25,8 @@ Shape::Shape( const TopoDS_Shape &shape ) : mShape( shape ) {
     
 }
 
+Shape::Shape() {}
+
 void 
 Shape::translate( double x, double y, double z ) {
     gp_Trsf tr;
@@ -33,7 +35,7 @@ Shape::translate( double x, double y, double z ) {
     mShape = mShape.Moved( loc );
 }
 
-bool
+ShapePtr
 Shape::fuse( const ShapePtr &part  ) {
     BRepAlgoAPI_Fuse fuse( mShape, part->getShape() );
 
@@ -42,24 +44,21 @@ Shape::fuse( const ShapePtr &part  ) {
     fuse.Build();                             // explicitly build result
     if (!fuse.IsDone()) {
         std::cerr << termcolor::red << "Fuse failed" << "\n";
-    } else {
-         mShape = fuse.Shape();
-    }
+    } 
 
-    return fuse.IsDone();
+    return ShapePtr( new Shape( fuse.Shape() ) );
 }
 
- bool 
+ ShapePtr 
  Shape::cut( const ShapePtr &part ) {
     BRepAlgoAPI_Cut cut( mShape, part->getShape() );
     cut.SetRunParallel(Standard_True);       // ✅ multi-threaded if possible
+    cut.SetNonDestructive(true);
     cut.Build();   
 
     if (!cut.IsDone()) {
         std::cerr << termcolor::red << "Cut failed" << "\n";
-    } else {
-         mShape = cut.Shape();
-    }
+    } 
 
-    return cut.IsDone();
+    return ShapePtr( new Shape( cut.Shape() ) );
  }

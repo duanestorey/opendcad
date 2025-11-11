@@ -250,16 +250,11 @@ int main() {
     */
     using namespace opendcad;
 
-    ShapePtr cylinder = Shape::createCylinder( 54, 100 );
-    ShapePtr box = Shape::createBox( 100, 100, 20 );
-    ShapePtr box2 = Shape::createBox( 20, 75, 50 );
-    ShapePtr box3 = Shape::createBox( 40, 40, 10 );
-    box2->translate( 10, 50, -40 );
+    ShapePtr cylinder1 = Shape::createCylinder( 58/2, 120 );
+    ShapePtr cylinder2 = Shape::createCylinder( 54/2, 120 );
 
-    box->cut( cylinder );
-    box->fuse( box2 );
-    box->cut( box3 );
-    model = box->getShape();
+    //ShapePtr newShape = cylinder1->cut( cylinder2 );
+    model = cylinder1->getShape();
 
     auto t_model_done = Clock::now();
 
@@ -278,7 +273,7 @@ int main() {
     auto t_step_done = Clock::now();
 
     // 6) Write STL (tighter deflection for more triangles)
-    if (!write_stl(fixed, stlPath + "_detailed.stl", /*deflection*/ 0.03, /*angle*/ 0.1, /*parallel*/ true)) {
+    if (!write_stl(fixed, stlPath + "_detailed.stl", /*deflection*/ 0.005, /*angle*/ 0.1, /*parallel*/ true)) {
         std::cerr << red << "STL export failed" << reset << "\n";
         return 1;
     }

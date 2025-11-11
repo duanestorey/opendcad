@@ -11,26 +11,74 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# --- ANTLR4 C++ runtime (from Homebrew/system package) ---
+# --------------------------------------------------------------------------------------
+# OpenCascade — prefer imported component targets; otherwise fall back to legacy vars
+# --------------------------------------------------------------------------------------
+set(_occt_components TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKTopAlgo TKSTL)
+find_package(OpenCASCADE QUIET COMPONENTS ${_occt_components})
+if(NOT OpenCASCADE_FOUND)
+  message(STATUS "OpenCASCADE component targets not available; retrying without components…")
+  find_package(OpenCASCADE REQUIRED)
+endif()
+
+# Helper to apply OCCT include/link + libs to a target
+function(link_occt target)
+  if(TARGET OpenCASCADE::TKernel)
+    target_link_libraries(${target} PRIVATE
+      OpenCASCADE::TKernel
+      OpenCASCADE::TKMath
+      OpenCASCADE::TKG2d
+      OpenCASCADE::TKG3d
+      OpenCASCADE::TKGeomBase
+      OpenCASCADE::TKBRep
+      OpenCASCADE::TKTopAlgo
+      OpenCASCADE::TKSTL
+    )
+  else()
+    # Legacy variables path
+    if(DEFINED OpenCASCADE_INCLUDE_DIR)
+      target_include_directories(${target} PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+    elseif(DEFINED OpenCASCADE_INCLUDE_DIRS)
+      target_include_directories(${target} PRIVATE ${OpenCASCADE_INCLUDE_DIRS})
+    endif()
+
+    # Make sure the linker can actually find libTKernel, etc.
+    if(DEFINED OpenCASCADE_LIBRARY_DIR)
+      target_link_directories(${target} PRIVATE ${OpenCASCADE_LIBRARY_DIR})
+    elseif(DEFINED OpenCASCADE_LIBRARY_DIRS)
+      target_link_directories(${target} PRIVATE ${OpenCASCADE_LIBRARY_DIRS})
+    elseif(APPLE)
+      # Homebrew fallback (arm64)
+      target_link_directories(${target} PRIVATE /opt/homebrew/lib)
+    endif()
+
+    # Link the libraries (these may be bare names on some Find modules)
+    target_link_libraries(${target} PRIVATE ${OpenCASCADE_LIBRARIES})
+  endif()
+endfunction()
+
+# --------------------------------------------------------------------------------------
+# ANTLR4 C++ runtime (from Homebrew/system package)
+# --------------------------------------------------------------------------------------
 find_package(antlr4-runtime CONFIG REQUIRED)
 
 # --- Your executable sources ---
 add_executable(opendcad
-    src/opendcad.cpp
-    src/output.cpp
-    Src/shape.cpp
-  
+  src/opendcad.cpp
+  src/output.cpp
+  Src/shape.cpp
 )
 
 # Warnings
 if (MSVC)
-    target_compile_options(opendcad PRIVATE /W4 /permissive-)
+  target_compile_options(opendcad PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O3)
+  target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O3)
 endif()
 
-# Link the runtime
+# Link the runtime + OpenCascade
 target_link_libraries(opendcad PRIVATE antlr4_shared)
+link_occt(opendcad)
 
 # ======================================================================================
 # ANTLR TOOLING (auto-generate lexer/parser during the build)
@@ -49,16 +97,15 @@ set(GRAMMAR_DIR ${CMAKE_SOURCE_DIR}/grammar)
 set(GEN_DIR     ${CMAKE_BINARY_DIR}/generated/antlr)
 file(MAKE_DIRECTORY ${GEN_DIR})
 
-# 3) List your grammar files here
+# 3) Grammar files
 set(GRAMMARS
   ${GRAMMAR_DIR}/OpenDCAD.g4
-  # add more .g4 files here if you split lexer/parser grammars
 )
 
-# 4) Expected generated files (for each grammar name)
+# 4) Expected generated files
 set(GENERATED_SOURCES)
 foreach(g ${GRAMMARS})
-  get_filename_component(gn ${g} NAME_WE)  # grammar name without extension
+  get_filename_component(gn ${g} NAME_WE)
   list(APPEND GENERATED_SOURCES
     ${GEN_DIR}/${gn}Lexer.cpp
     ${GEN_DIR}/${gn}Parser.cpp
@@ -69,13 +116,13 @@ foreach(g ${GRAMMARS})
   )
 endforeach()
 
-# 5) Command to generate the C++ sources
+# 5) Generate the C++ sources
 add_custom_command(
   OUTPUT  ${GENERATED_SOURCES}
   COMMAND ${ANTLR4_CMD}
           -Dlanguage=Cpp
           -visitor -listener
-          -package ${PROJECT_NAME}           # optional: namespaces generated code
+          -package ${PROJECT_NAME}
           -o ${GEN_DIR}
           ${GRAMMARS}
   DEPENDS ${GRAMMARS}
@@ -91,30 +138,6 @@ add_custom_target(generate_antlr ALL DEPENDS ${GENERATED_SOURCES})
 target_sources(opendcad PRIVATE ${GENERATED_SOURCES})
 target_include_directories(opendcad PRIVATE ${GEN_DIR})
 add_dependencies(opendcad generate_antlr)
-
-# Find OpenCascade (Homebrew build has no component system)
-find_package(OpenCASCADE REQUIRED)
-
-# Include dirs
-include_directories(${OpenCASCADE_INCLUDE_DIR})
-
-# Link the entire OCCT library set
-target_link_libraries(opendcad PRIVATE ${OpenCASCADE_LIBRARIES})
-
-
-
-# --------------------------------------------------------------------------------------
-# Future dependencies (commented for now)
-# --------------------------------------------------------------------------------------
-# find_package(OpenCASCADE REQUIRED)
-# target_link_libraries(opendcad PRIVATE ${OpenCASCADE_LIBRARIES})
-# target_include_directories(opendcad PRIVATE ${OpenCASCADE_INCLUDE_DIR})
-
-# --------------------------------------------------------------------------------------
-# install (optional)
-# --------------------------------------------------------------------------------------
-# install(TARGETS opendcad DESTINATION bin)
-
 
 # --- Viewer (GLFW + OpenGL) ---
 find_package(PkgConfig REQUIRED)
@@ -142,3 +165,6 @@ endif()
 
 target_compile_features(opendcad_viewer PRIVATE cxx_std_20)
 target_compile_options(opendcad_viewer PRIVATE -Wall -Wextra -Wpedantic)
+
+# Link OpenCascade to the viewer as well
+link_occt(opendcad_viewer)
