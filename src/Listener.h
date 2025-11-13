@@ -5,6 +5,7 @@
 #include "OpenDCADLexer.h"
 #include "OpenDCADParser.h"
 #include "OpenDCADBaseVisitor.h"
+#include "Debug.h"
 
 using namespace OpenDCAD;
 
@@ -14,7 +15,7 @@ struct TraceVisitor : public OpenDCADBaseVisitor {
 
     // program : stmt* EOF
     antlrcpp::Any visitProgram(OpenDCADParser::ProgramContext* ctx) override {
-        std::cout << "Program\n";
+        DEBUG_VERBOSE( "Program" );
         depth++;
         for (auto* s : ctx->stmt()) visit(s);
         depth--;
@@ -25,21 +26,20 @@ struct TraceVisitor : public OpenDCADBaseVisitor {
 
     // let a = b;
     antlrcpp::Any visitLetAlias(OpenDCADParser::LetAliasContext* ctx) override {
-        std::cout << indent() << "Let " << ctx->IDENT(0)->getText()
-                  << " = " << ctx->IDENT(1)->getText() << " (alias)\n";
+        DEBUG_VERBOSE( indent() << "Let " << ctx->IDENT(0)->getText() << " = " << ctx->IDENT(1)->getText() << " (alias)" );
         return nullptr;
     }
 
     // let a = bin(...).fillet(...);
     antlrcpp::Any visitLetChain(OpenDCADParser::LetChainContext* ctx) override {
-        std::cout << indent() << "Let " << ctx->IDENT()->getText() << " =\n";
+        DEBUG_VERBOSE( indent() << "Let " << ctx->IDENT()->getText() << " =" );
         depth++; visit(ctx->chainExpr()); depth--;
         return nullptr;
     }
 
     // let a = expr;   (numbers / vectors / even chains allowed by grammar)
     antlrcpp::Any visitLetValue(OpenDCADParser::LetValueContext* ctx) override {
-        std::cout << indent() << "Let " << ctx->IDENT()->getText() << " = (expr)\n";
+        DEBUG_VERBOSE( indent() << "Let " << ctx->IDENT()->getText() << " = (expr)" );
         depth++; visit(ctx->expr()); depth--;
         return nullptr;
     }
@@ -48,7 +48,7 @@ struct TraceVisitor : public OpenDCADBaseVisitor {
 
     // export expr as IDENT ;
     antlrcpp::Any visitExportStmt(OpenDCADParser::ExportStmtContext* ctx) override {
-        std::cout << indent() << "Export as " << ctx->IDENT()->getText() << " from:\n";
+        DEBUG_VERBOSE( indent() << "Export as " << ctx->IDENT()->getText() << " from:" );
         depth++; visit(ctx->expr()); depth--;
         return nullptr;
     }
@@ -61,67 +61,58 @@ struct TraceVisitor : public OpenDCADBaseVisitor {
 
     // postfix: c=call ('.' methodCall)*   # postFromCall
     antlrcpp::Any visitPostFromCall(OpenDCADParser::PostFromCallContext* ctx) override {
-        std::cout << indent() << "Chain\n";
+        DEBUG_VERBOSE( indent() << "Chain" );
         depth++;
 
         auto* c = ctx->c;
         size_t argc = c->argList()->expr().size();
-        std::cout << indent() << "Seed: " << c->IDENT()->getText()
-                  << "(" << argc << " args)\n";
+        DEBUG_VERBOSE( indent() << "Seed: " << c->IDENT()->getText() << "(" << argc << " args)" );
 
         for (auto* m : ctx->methodCall()) {
             size_t margc = m->argList()->expr().size();
-            std::cout << indent() << ". " << m->IDENT()->getText()
-                      << "(" << margc << " args)\n";
+            DEBUG_VERBOSE( indent() << ". " << m->IDENT()->getText() << "(" << margc << " args)" );
         }
 
         depth--;
         return nullptr;
     }
 
-    // postfix: var=IDENT '.' methodCall ('.' methodCall)*   # postFromVar
     antlrcpp::Any visitPostFromVar(OpenDCADParser::PostFromVarContext* ctx) override {
-        std::cout << indent() << "Chain\n";
+        DEBUG_VERBOSE( indent() << "Chain" );
         depth++;
 
-        std::cout << indent() << "Seed: " << ctx->var->getText() << " (var)\n";
         for (auto* m : ctx->methodCall()) {
             size_t margc = m->argList()->expr().size();
-            std::cout << indent() << ". " << m->IDENT()->getText()
-                      << "(" << margc << " args)\n";
         }
 
         depth--;
         return nullptr;
     }
 
-    // call : IDENT '(' argList ')'
     antlrcpp::Any visitCall(OpenDCADParser::CallContext* ctx) override {
         // Normally printed by postFromCall; keep quiet to avoid duplication.
         return nullptr;
     }
 
-    // methodCall : IDENT '(' argList ')'
     antlrcpp::Any visitMethodCall(OpenDCADParser::MethodCallContext* ctx) override {
         // Printed within postFromCall/postFromVar; nothing to do here.
         return nullptr;
     }
 
     // ---------- expressions / literals (just to show structure) ----------
-
     antlrcpp::Any visitPrimaryExpr(OpenDCADParser::PrimaryExprContext* ctx) override {
         return visit(ctx->primary());
     }
 
     antlrcpp::Any visitPrimary(OpenDCADParser::PrimaryContext* ctx) override {
         if (ctx->NUMBER()) {
-            std::cout << indent() << "Number " << ctx->NUMBER()->getText() << "\n";
+            DEBUG_VERBOSE( indent() << "Number " << ctx->NUMBER()->getText() );
             return nullptr;
         }
         if (ctx->vectorLiteral()) return visit(ctx->vectorLiteral());
         if (ctx->postfix())       return visit(ctx->postfix());
         if (ctx->IDENT()) {       // <-- new: bare variable as expression
-            std::cout << indent() << "Var " << ctx->IDENT()->getText() << "\n";
+            DEBUG_VERBOSE( indent() << "Var " << ctx->IDENT()->getText() );
             return nullptr;
         }
         if (ctx->expr())          return visit(ctx->expr());
@@ -130,7 +121,7 @@ struct TraceVisitor : public OpenDCADBaseVisitor {
 
     // [x,y] or [x,y,z]
     antlrcpp::Any visitVectorLiteral(OpenDCADParser::VectorLiteralContext* ctx) override {
-        std::cout << indent() << "Vector[" << ctx->expr().size() << "]\n";
+        DEBUG_VERBOSE( indent() << "Vector[" << ctx->expr().size() << "]" );
         depth++;
         for (auto* e : ctx->expr()) visit(e);
         depth--;

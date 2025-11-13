@@ -66,7 +66,8 @@ find_package(antlr4-runtime CONFIG REQUIRED)
 add_executable(opendcad
   src/opendcad.cpp
   src/output.cpp
-  Src/shape.cpp
+  src/Shape.cpp
+  Src/Timer.cpp
 )
 
 # Warnings
@@ -148,7 +149,7 @@ if (NOT GLFW_FOUND)
 endif()
 
 add_executable(opendcad_viewer
-  viewer/viewer_main.cpp
+  Src/viewer.cpp
 )
 
 # macOS OpenGL framework + GLFW

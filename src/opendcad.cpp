@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <string>
-#include <chrono>
+
 #include <vector>
 #include <cmath>
 
@@ -54,13 +54,13 @@
 #include <Standard_Version.hxx>
 
 #include "Shape.h"
+#include "Debug.h"
 
 
 const char VERSION[] = "1.00.00";
 
 using namespace termcolor;
-using Clock = std::chrono::high_resolution_clock;
-using ms    = std::chrono::duration<double, std::milli>;
+
 
 using namespace termcolor;
 
@@ -100,16 +100,48 @@ inline auto success = LogManip{[](std::ostream& os) {
     os << green << "[OK]    ";
 }};
 
+void writeLogo() {
+    char buf[256];
+    snprintf( buf, sizeof buf, "| OpenDCAD version [%s] - OCCT version [%s] |", VERSION, OCC_VERSION_COMPLETE );
+
+    std::cout << green;
+    for (int i = 0 ; i < strlen( buf ); i++ ) {
+        std::cout << "-";
+    }
+    std::cout << "\n";
+
+    std::cout << green << "| OpenDCAD version [" << white << VERSION << green
+              << "]";
+    std::cout << " - OCCT version [" << white << OCC_VERSION_COMPLETE << green << "] |" << reset << "\n";
+
+    std::cout << green;
+    for (int i = 0 ; i < strlen( buf ); i++ ) {
+        std::cout << "-";
+    }
+    std::cout << "\n\n";
+}
+
 static bool write_step(const TopoDS_Shape& s, const std::string& path) {
+    Message_Gravity aGravity = Message_Alarm;
+    DEBUG_INFO( "Writing STEP file [" << path << "]" );
+  for (Message_SequenceOfPrinters::Iterator aPrinterIter (Message::DefaultMessenger()->Printers());
+       aPrinterIter.More(); aPrinterIter.Next())
+  {
+    aPrinterIter.Value()->SetTraceLevel (aGravity);
+  }
     STEPControl_Writer w;
     if (w.Transfer(s, STEPControl_AsIs) != IFSelect_RetDone) return false;
-    return w.Write(path.c_str()) == IFSelect_RetDone;
+    bool result = w.Write(path.c_str()) == IFSelect_RetDone;
+    DEBUG_INFO( "...file written" );
+    return result;
 }
 
  bool write_stl(const TopoDS_Shape& s, const std::string& path,
                       double deflection = 0.3, double angle = 0.5, bool parallel = true) {
     // Mesh the B-Rep (needed before STL export)
     BRepMesh_IncrementalMesh mesher(s, deflection, false, angle, parallel);
+    DEBUG_INFO( "Writing STL file [" << path << "] with deflection [" << deflection << "]" );
+
     mesher.Perform();
     if (!mesher.IsDone()) return false;
 
@@ -122,38 +154,16 @@ static bool write_step(const TopoDS_Shape& s, const std::string& path) {
         if (!tri.IsNull())
             triCount += tri->NbTriangles();
     }
-    std::cout << termcolor::yellow << "STL triangles (" << deflection << " defl): "
-              << termcolor::white << triCount << termcolor::reset << "\n";
+    DEBUG_INFO( "...mesh tessalation complete - triangles generated [" << triCount << "]" );
+   // std::cout << termcolor::yellow << "STL triangles (" << deflection << " defl): "
+         //     << termcolor::white << triCount << termcolor::reset << "\n";
 
     // --- Write STL file ---
     StlAPI_Writer w;
     // Binary is default; to force ASCII: w.ASCIIMode() = Standard_True;
-    return w.Write(s, path.c_str());
-}
-
-// Small helper to fillet all outer edges on a prismatic solid
-static TopoDS_Shape fillet_all_edges(const TopoDS_Shape& s, double r) {
-    BRepFilletAPI_MakeFillet mk(s);
-    for (TopExp_Explorer ex(s, TopAbs_EDGE); ex.More(); ex.Next()) {
-        mk.Add(r, TopoDS::Edge(ex.Current()));
-    }
-    return mk.Shape();
-}
-
-// Build one standoff (a small cylinder "post" with a through hole for insert)
-static TopoDS_Shape make_standoff(double outerR, double height, double holeR) {
-    // Axis points +Z, base at z=0 in local space
-    gp_Ax2 ax(gp_Pnt(0,0,0), gp::DZ(), gp::DX());
-    TopoDS_Shape outer = BRepPrimAPI_MakeCylinder(ax, outerR, height).Shape();
-    // Slightly longer hole to ensure full cut
-    TopoDS_Shape inner = BRepPrimAPI_MakeCylinder(ax, holeR, height + 1.0).Shape();
-    return BRepAlgoAPI_Cut(outer, inner).Shape();
-}
-
-// Place a local shape at world (x,y,z) with +Z up
-static TopoDS_Shape place_at(const TopoDS_Shape& local, double x, double y, double z) {
-    gp_Trsf t; t.SetTranslation(gp_Vec(x, y, z));
-    return BRepBuilderAPI_Transform(local, t).Shape();
+    bool result =  w.Write(s, path.c_str());;
+    DEBUG_INFO( "...file written" );
+    return result;
 }
 
 std::string loadFile(const std::string& path) {
@@ -164,35 +174,38 @@ std::string loadFile(const std::string& path) {
 }
 
 int main() {
-    std::cout << green << "OpenDCAD version [" << white << VERSION << green
-              << "]  OCCT " << white << OCC_VERSION_COMPLETE << reset << "\n";
+    writeLogo();
 
-    // ──────────────────────────────────────────────────────────────────────────────
     // (Optional) ANTLR parse sanity (kept from your test)
     using namespace antlr4;
     using namespace OpenDCAD;
     {
       //  std::string src = "Box(w:100,h:80,d:8).fillet(r:2);";
+        std::string fileToLoad = "./examples/battery.dcad";
+        DEBUG_INFO( "Loading script [" << fileToLoad << "]" );
+
         std::string src = loadFile( "./examples/battery.dcad" );
   
         ANTLRInputStream input(src);
         OpenDCADLexer lexer(&input);
         CommonTokenStream tokens(&lexer);
         OpenDCADParser parser(&tokens);
+        DEBUG_INFO( "...starting parser" );
         auto* tree = parser.program(); // start rule was 'prog' in your grammar
-        std::cout << cyan << "ANTLR parse OK" << reset << "  →  "
-                  << tree->toStringTree(&parser) << "\n";
+       // std::cout << cyan << "ANTLR parse OK" << reset << "  →  "
+         //         << tree->toStringTree(&parser) << "\n";
 
-                   TraceVisitor tv;
-    tv.visit(tree);
+        DEBUG_INFO( "...parsing complete" );
+        TraceVisitor tv;
+        
+        tv.visit(tree);
+        DEBUG_INFO( "...parsed tree walk complete" );
     }
-    // ──────────────────────────────────────────────────────────────────────────────
-
+  
     const std::string stepPath = "build/bin/opendcad_test.step";
     const std::string stlPath  = "build/bin/opendcad_test";
 
-    auto t_start = Clock::now();
-     TopoDS_Shape model;
+    TopoDS_Shape model;
 /*
     // 1) Base plate
     TopoDS_Shape base = BRepPrimAPI_MakeBox(100.0, 80.0, 12.0).Shape(); // (x,y,z dims)
@@ -263,20 +276,34 @@ int main() {
     */
     using namespace opendcad;
 
-    ShapePtr bin = Shape::createBin( 80, 120, 20, 2 );
+    DEBUG_VERBOSE( "Building models" );
+    ShapePtr cylinder1 = Shape::createCylinder( 54/2, 25 );
+    ShapePtr cylinder2 = Shape::createCylinder( 51/2, 25 );
+    cylinder1 = cylinder1->cut( cylinder2 )->z( 24 );
+
+    ShapePtr cylinder3 = Shape::createCylinder( 57/2, 25 );
+    ShapePtr cylinder4 = Shape::createCylinder( 54/2, 25 );
+
+    cylinder3 = cylinder3->cut( cylinder4 );
+
+    cylinder3 = cylinder3->fuse( cylinder1 );
+
+    /*
+    ShapePtr bin = Shape::createBin( 80, 120, 20, 1.2 );
     bin = bin->fillet( 0.5 );
 
-    ShapePtr battery = Shape::createCylinder( 21/2, 70 )->z( -35 )->rotate( 0, 90, 0 )->z( 12 );
+    ShapePtr battery = Shape::createCylinder( 21/2, 70 )->z( -35 )->rotate( 0, 90, 0 )->z( 11 );
     ShapePtr fourBatteries = battery->fuse( battery->translate( 0, 22, 0 ) )->fuse( battery->translate( 0, 44, 0 ) )->fuse( battery->translate( 0, 66, 0 ) );
 
     ShapePtr offset = Shape::createCylinder( 5, 20 )->cut( Shape::createCylinder( 4.8/2, 6 )->z( 14 ) );
     bin = bin->placeCorners( offset, 34, 54 );
 
-    bin = bin->fuse( fourBatteries->translate( 0, -40, 0 ) );
+    bin = bin->cut( fourBatteries->translate( 0, -35, 0 ) );
+    */
 
-    model = bin->getShape();
+    model = cylinder3->getShape();
 
-    auto t_model_done = Clock::now();
+    DEBUG_INFO( "Healing shape" );
 
     // 4) Heal
     Handle(ShapeFix_Shape) fixer = new ShapeFix_Shape(model);
@@ -284,20 +311,16 @@ int main() {
     TopoDS_Shape fixed = fixer->Shape();
     TopoDS_Shape fixed2 = fixed;
 
-    auto t_heal_done = Clock::now();
-
     // 5) Write STEP
     if (!write_step(fixed, stepPath)) {
         std::cerr << red << "STEP export failed" << reset << "\n";
         return 1;
     }
-    auto t_step_done = Clock::now();
 
     if (!write_stl(fixed2, stlPath + "_rough.stl", 0.05, 0.5, true)) {
         std::cerr << red << "STL export failed" << reset << "\n";
         return 1;
     }
-
 
     // 6) Write STL (tighter deflection for more triangles)
     if (!write_stl(fixed, stlPath + "_detailed.stl", 0.01, 0.1, true)) {
@@ -305,29 +328,6 @@ int main() {
         return 1;
     }
 
-    auto t_stl_done = Clock::now();
-
-
-    
-    std::cout << green << "Wrote STEP: " << white << stepPath << reset << "\n";
-    std::cout << green << "Wrote STL:  " << white << stlPath  << reset << "\n";
-
-    // ──────────────────────────────────────────────────────────────────────────────
-    // Timing summary
-    auto t_model = ms(t_model_done - t_start).count();
-    auto t_heal  = ms(t_heal_done  - t_model_done).count();
-    auto t_step  = ms(t_step_done  - t_heal_done).count();
-    auto t_stl   = ms(t_stl_done   - t_step_done).count();
-    auto t_total = ms(t_stl_done   - t_start).count();
-
-    std::cout << bold << "\nTiming (ms)\n" << reset;
-    std::cout << debug << "  model (booleans/fillets): " << t_model << " ms\n";
-    std::cout << "  heal:                     " << t_heal  << " ms\n";
-    std::cout << "  write STEP:               " << t_step  << " ms\n";
-    std::cout << "  mesh + write STL:         " << t_stl   << " ms\n";
-    std::cout << bold << "  TOTAL:                    " << t_total << " ms\n" << reset;
-
-    //show_shape(fixed);
 
     return 0;
 }
