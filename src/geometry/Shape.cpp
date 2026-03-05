@@ -19,6 +19,7 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepOffsetAPI_MakePipe.hxx>
@@ -77,6 +78,10 @@ ShapePtr Shape::createCylinder( double radius, double height ) {
 
 ShapePtr Shape::createTorus( double r1, double r2, double angle ) {
     gp_Ax2 ax(gp_Pnt(0,0,0), gp::DZ(), gp::DX());
+    if (angle > 0 && angle < 360.0) {
+        double angleRad = angle * M_PI / 180.0;
+        return ShapePtr( new Shape( BRepPrimAPI_MakeTorus( ax, r1, r2, angleRad ).Shape() ) );
+    }
     return ShapePtr( new Shape( BRepPrimAPI_MakeTorus( ax, r1, r2 ).Shape() ) );
 }
 
@@ -316,11 +321,24 @@ ShapePtr Shape::linearExtrude( double height ) const {
 ShapePtr Shape::rotateExtrude( double angleDeg ) const {
     double angleRad = angleDeg * M_PI / 180.0;
     gp_Ax1 axis(gp_Pnt(0,0,0), gp::DZ());
-    BRepPrimAPI_MakeRevol revol(mShape, axis, angleRad);
+
+    // Revolve the shape directly — works for faces, wires, edges
+    BRepPrimAPI_MakeRevol revol(mShape, axis, angleRad, true);
     revol.Build();
     if (!revol.IsDone())
         throw GeometryError("rotate_extrude operation failed");
-    return ShapePtr( new Shape( revol.Shape() ) );
+
+    TopoDS_Shape result = revol.Shape();
+
+    // If the result is a shell (from revolving a face), try to make it a solid
+    if (result.ShapeType() == TopAbs_SHELL) {
+        BRepBuilderAPI_MakeSolid solidMaker;
+        solidMaker.Add(TopoDS::Shell(result));
+        if (solidMaker.IsDone())
+            result = solidMaker.Shape();
+    }
+
+    return ShapePtr( new Shape( result ) );
 }
 
 ShapePtr Shape::sweep( const ShapePtr& pathShape ) const {
