@@ -1,0 +1,37 @@
+// Complete language demo — exercises all new features
+import "lib/fasteners.dcad";
+
+const wall = 2;
+const body_color = color(40, 40, 45);
+
+fn mounting_plate(width, depth, holes = 4) {
+    let plate = box(width, depth, wall).color(body_color);
+    let spacing = width / (holes + 1);
+
+    for (let i = 0; i < holes; i++) {
+        let x = spacing * (i + 1) - width / 2;
+        plate = plate.face(">Z").throughHole(3, x, 0);
+    }
+
+    return plate.edges().vertical().fillet(1);
+}
+
+let base = mounting_plate(80, 60);
+let posts = [];
+
+for (let i = 0; i < 4; i++) {
+    let p = cylinder(4, 25).x(i * 20 - 30);
+    posts.push(p);
+    base = base.fuse(p);
+}
+
+let model = base.material(STEEL);
+
+// Use imported function
+let bolt = m3_bolt(15).translate([0, 0, 30]);
+model = model.fuse(bolt);
+
+print("Parts:", posts.length());
+print("Complete model built successfully");
+
+export model as mounting_bracket;
