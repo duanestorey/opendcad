@@ -31,6 +31,11 @@ public:
     SketchPtr splineTo(const std::vector<std::pair<double,double>>& throughPts, double ex, double ey);
     SketchPtr close();
 
+    // Wire modification operations
+    SketchPtr fillet2D(double radius);
+    SketchPtr chamfer2D(double distance);
+    SketchPtr offset(double distance);
+
     // Operations that produce geometry
     ShapePtr extrude(double height) const;
     ShapePtr cutBlind(double depth) const;

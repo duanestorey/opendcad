@@ -22,6 +22,14 @@ public:
     WorkplanePtr workplane() const;
     SketchPtr draw() const;
 
+    // Parametric holes
+    ShapePtr hole(double diameter, double depth, double cx = 0, double cy = 0) const;
+    ShapePtr throughHole(double diameter, double cx = 0, double cy = 0) const;
+    ShapePtr counterbore(double holeDia, double boreDia, double boreDepth,
+                         double holeDepth, double cx = 0, double cy = 0) const;
+    ShapePtr countersink(double holeDia, double sinkDia, double sinkAngle,
+                         double holeDepth, double cx = 0, double cy = 0) const;
+
     const TopoDS_Face& face() const { return face_; }
     ShapePtr parent() const { return parent_; }
 

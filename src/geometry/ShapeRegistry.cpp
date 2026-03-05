@@ -560,6 +560,67 @@ void ShapeRegistry::registerDefaults() {
             return Value::makeShape(self->asSketch()->revolve(angle));
         });
 
+    registerTypedMethod(ValueType::SKETCH, "fillet2D",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double r = requireNumber(args, 0, "fillet2D");
+            return Value::makeSketch(self->asSketch()->fillet2D(r));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "chamfer2D",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double d = requireNumber(args, 0, "chamfer2D");
+            return Value::makeSketch(self->asSketch()->chamfer2D(d));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "offset",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double d = requireNumber(args, 0, "offset");
+            return Value::makeSketch(self->asSketch()->offset(d));
+        });
+
+    // =========================================================================
+    // Typed Methods — FACE_REF (parametric holes)
+    // =========================================================================
+
+    registerTypedMethod(ValueType::FACE_REF, "hole",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dia = requireNumber(args, 0, "hole");
+            double depth = requireNumber(args, 1, "hole");
+            double cx = args.size() > 2 ? args[2]->asNumber() : 0;
+            double cy = args.size() > 3 ? args[3]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->hole(dia, depth, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "throughHole",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dia = requireNumber(args, 0, "throughHole");
+            double cx = args.size() > 1 ? args[1]->asNumber() : 0;
+            double cy = args.size() > 2 ? args[2]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->throughHole(dia, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "counterbore",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double holeDia = requireNumber(args, 0, "counterbore");
+            double boreDia = requireNumber(args, 1, "counterbore");
+            double boreDepth = requireNumber(args, 2, "counterbore");
+            double holeDepth = requireNumber(args, 3, "counterbore");
+            double cx = args.size() > 4 ? args[4]->asNumber() : 0;
+            double cy = args.size() > 5 ? args[5]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->counterbore(holeDia, boreDia, boreDepth, holeDepth, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "countersink",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double holeDia = requireNumber(args, 0, "countersink");
+            double sinkDia = requireNumber(args, 1, "countersink");
+            double sinkAngle = requireNumber(args, 2, "countersink");
+            double holeDepth = requireNumber(args, 3, "countersink");
+            double cx = args.size() > 4 ? args[4]->asNumber() : 0;
+            double cy = args.size() > 5 ? args[5]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->countersink(holeDia, sinkDia, sinkAngle, holeDepth, cx, cy));
+        });
+
     // =========================================================================
     // Typed Methods — EDGE_SELECTOR
     // =========================================================================

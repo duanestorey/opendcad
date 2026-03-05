@@ -392,3 +392,89 @@ TEST(SketchTest, RevolveFusesWithParent) {
     // The result should have more faces than original 6-face box
     EXPECT_GT(result->faces()->count(), 6);
 }
+
+// =============================================================================
+// Sketch Wire Operations Tests
+// =============================================================================
+
+TEST(SketchTest, Fillet2DOnRect) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->rect(20, 15)->fillet2D(2)->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, Fillet2DOnPolygon) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->polygon({{-8, -6}, {8, -6}, {8, 6}, {-8, 6}});
+    sk->fillet2D(1.5);
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, Chamfer2DOnRect) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->rect(20, 15)->chamfer2D(2)->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, OffsetPositive) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->rect(10, 10)->offset(2)->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, OffsetNegative) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->rect(20, 15)->offset(-2)->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+// =============================================================================
+// Parametric Hole Tests
+// =============================================================================
+
+TEST(FaceRefTest, HoleBlind) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->hole(6, 5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(FaceRefTest, HoleThrough) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->throughHole(6);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(FaceRefTest, HoleOffCenter) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->hole(4, 5, 10, 5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(FaceRefTest, CounterboreValid) {
+    auto box = Shape::createBox(40, 30, 20);
+    auto result = box->face(">Z")->counterbore(5, 10, 3, 15);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(FaceRefTest, CountersinkValid) {
+    auto box = Shape::createBox(40, 30, 20);
+    auto result = box->face(">Z")->countersink(5, 10, 90, 15);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(FaceRefTest, HoleDimensionCheck) {
+    // A hole should reduce volume
+    auto box = Shape::createBox(40, 30, 10);
+    auto withHole = box->face(">Z")->throughHole(6);
+    // After a through-hole, there should be more faces than original 6
+    EXPECT_GT(withHole->faces()->count(), 6);
+}
+
+TEST(FaceRefTest, CounterboreChainedWithThroughHole) {
+    auto box = Shape::createBox(40, 30, 20);
+    auto result = box->face(">Z")->counterbore(5, 10, 3, 15);
+    auto result2 = result->face(">Z")->throughHole(4, 10, 5);
+    EXPECT_TRUE(result2->isValid());
+}

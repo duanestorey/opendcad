@@ -21,6 +21,11 @@
 #include <GeomAPI_PointsToBSpline.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <BRepFilletAPI_MakeFillet2d.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
+#include <TopExp.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 
 namespace opendcad {
 
@@ -228,6 +233,93 @@ SketchPtr Sketch::close() {
     wires_.push_back(wireMaker.Wire());
     wireEdges_.clear();
     wireStarted_ = false;
+    return shared_from_this();
+}
+
+SketchPtr Sketch::fillet2D(double radius) {
+    if (wires_.empty())
+        throw GeometryError("fillet2D requires a wire");
+
+    // Build temporary face from the last wire
+    TopoDS_Wire& wire = wires_.back();
+    gp_Pln pln(wp_->origin(), wp_->normal());
+    BRepBuilderAPI_MakeFace faceBuilder(pln, wire);
+    if (!faceBuilder.IsDone())
+        throw GeometryError("fillet2D: face creation failed");
+
+    TopoDS_Face face = faceBuilder.Face();
+    BRepFilletAPI_MakeFillet2d fillet(face);
+
+    TopTools_IndexedMapOfShape vertexMap;
+    TopExp::MapShapes(face, TopAbs_VERTEX, vertexMap);
+    for (int i = 1; i <= vertexMap.Extent(); ++i) {
+        fillet.AddFillet(TopoDS::Vertex(vertexMap(i)), radius);
+    }
+    fillet.Build();
+    if (!fillet.IsDone())
+        throw GeometryError("fillet2D operation failed");
+
+    // Extract the outer wire from the modified face
+    TopoDS_Face resultFace = TopoDS::Face(fillet.Shape());
+    TopExp_Explorer wireEx(resultFace, TopAbs_WIRE);
+    if (!wireEx.More())
+        throw GeometryError("fillet2D: no wire in result");
+    wires_.back() = TopoDS::Wire(wireEx.Current());
+
+    return shared_from_this();
+}
+
+SketchPtr Sketch::chamfer2D(double distance) {
+    if (wires_.empty())
+        throw GeometryError("chamfer2D requires a wire");
+
+    TopoDS_Wire& wire = wires_.back();
+    gp_Pln pln(wp_->origin(), wp_->normal());
+    BRepBuilderAPI_MakeFace faceBuilder(pln, wire);
+    if (!faceBuilder.IsDone())
+        throw GeometryError("chamfer2D: face creation failed");
+
+    TopoDS_Face face = faceBuilder.Face();
+    BRepFilletAPI_MakeFillet2d chamfer(face);
+
+    // AddChamfer requires (Edge, Vertex, Distance, Angle)
+    for (TopExp_Explorer edgeEx(face, TopAbs_EDGE); edgeEx.More(); edgeEx.Next()) {
+        TopoDS_Edge edge = TopoDS::Edge(edgeEx.Current());
+        TopExp_Explorer vtxEx(edge, TopAbs_VERTEX);
+        if (vtxEx.More()) {
+            chamfer.AddChamfer(edge, TopoDS::Vertex(vtxEx.Current()),
+                               distance, M_PI / 4.0);
+        }
+    }
+    chamfer.Build();
+    if (!chamfer.IsDone())
+        throw GeometryError("chamfer2D operation failed");
+
+    TopoDS_Face resultFace = TopoDS::Face(chamfer.Shape());
+    TopExp_Explorer wireEx(resultFace, TopAbs_WIRE);
+    if (!wireEx.More())
+        throw GeometryError("chamfer2D: no wire in result");
+    wires_.back() = TopoDS::Wire(wireEx.Current());
+
+    return shared_from_this();
+}
+
+SketchPtr Sketch::offset(double distance) {
+    if (wires_.empty())
+        throw GeometryError("offset requires a wire");
+
+    TopoDS_Wire& wire = wires_.back();
+    BRepOffsetAPI_MakeOffset offsetBuilder(wire, GeomAbs_Arc);
+    offsetBuilder.Perform(distance);
+
+    if (!offsetBuilder.IsDone())
+        throw GeometryError("offset operation failed");
+
+    TopExp_Explorer wireEx(offsetBuilder.Shape(), TopAbs_WIRE);
+    if (!wireEx.More())
+        throw GeometryError("offset: no wire in result");
+    wires_.back() = TopoDS::Wire(wireEx.Current());
+
     return shared_from_this();
 }
 
