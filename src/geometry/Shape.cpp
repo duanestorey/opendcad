@@ -28,6 +28,10 @@
 #include <BRepOffsetAPI_MakePipe.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepOffsetAPI_DraftAngle.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <GeomAbs_SurfaceType.hxx>
 #include <TopoDS.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -395,6 +399,125 @@ ShapePtr Shape::shell( double thickness ) const {
         throw GeometryError("shell operation failed");
 
     return std::make_shared<Shape>( hollower.Shape() );
+}
+
+// =============================================================================
+// Feature Patterns
+// =============================================================================
+
+ShapePtr Shape::linearPattern(double dx, double dy, double dz, int count) const {
+    if (count <= 1)
+        return std::make_shared<Shape>(mShape);
+
+    auto result = std::make_shared<Shape>(mShape);
+    for (int i = 1; i < count; ++i) {
+        gp_Trsf tr;
+        tr.SetTranslation(gp_Vec(dx * i, dy * i, dz * i));
+        auto copy = std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, tr, true).Shape());
+        result = result->fuse(copy);
+    }
+    return result;
+}
+
+ShapePtr Shape::circularPattern(double ax, double ay, double az, int count, double angleDeg) const {
+    if (count <= 1)
+        return std::make_shared<Shape>(mShape);
+
+    double totalRad = angleDeg * M_PI / 180.0;
+    double stepAngle = totalRad / count;
+    gp_Ax1 axis(gp::Origin(), gp_Dir(ax, ay, az));
+
+    auto result = std::make_shared<Shape>(mShape);
+    for (int i = 1; i < count; ++i) {
+        gp_Trsf tr;
+        tr.SetRotation(axis, stepAngle * i);
+        auto copy = std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, tr, true).Shape());
+        result = result->fuse(copy);
+    }
+    return result;
+}
+
+ShapePtr Shape::mirrorFeature(double nx, double ny, double nz) const {
+    auto mirrored = mirror(nx, ny, nz);
+    auto self = std::make_shared<Shape>(mShape);
+    return self->fuse(mirrored);
+}
+
+// =============================================================================
+// Advanced Operations
+// =============================================================================
+
+ShapePtr Shape::draft(double angleDeg, double nx, double ny, double nz) const {
+    double angleRad = angleDeg * M_PI / 180.0;
+    gp_Dir pullDir(nx, ny, nz);
+    gp_Pln neutralPlane(gp_Pnt(0, 0, 0), pullDir);
+
+    BRepOffsetAPI_DraftAngle draftMaker(mShape);
+    for (TopExp_Explorer ex(mShape, TopAbs_FACE); ex.More(); ex.Next()) {
+        TopoDS_Face face = TopoDS::Face(ex.Current());
+        BRepAdaptor_Surface surf(face);
+        if (surf.GetType() != GeomAbs_Plane) continue;
+
+        gp_Dir faceNorm = surf.Plane().Axis().Direction();
+        if (face.Orientation() == TopAbs_REVERSED)
+            faceNorm.Reverse();
+
+        // Only draft faces perpendicular to the pull direction
+        double dot = std::abs(faceNorm.X() * pullDir.X() +
+                              faceNorm.Y() * pullDir.Y() +
+                              faceNorm.Z() * pullDir.Z());
+        if (dot < 0.1) { // roughly perpendicular
+            draftMaker.Add(face, pullDir, angleRad, neutralPlane);
+        }
+    }
+    draftMaker.Build();
+    if (!draftMaker.IsDone())
+        throw GeometryError("draft operation failed");
+
+    return std::make_shared<Shape>(draftMaker.Shape());
+}
+
+ShapePtr Shape::splitAt(double px, double py, double pz, double nx, double ny, double nz) const {
+    // Build infinite-ish cutting plane
+    gp_Pln plane(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz));
+    BRepBuilderAPI_MakeFace planeFace(plane, -1000, 1000, -1000, 1000);
+    if (!planeFace.IsDone())
+        throw GeometryError("splitAt: plane face creation failed");
+
+    BRepAlgoAPI_Splitter splitter;
+    TopTools_ListOfShape objects, tools;
+    objects.Append(mShape);
+    tools.Append(planeFace.Shape());
+    splitter.SetArguments(objects);
+    splitter.SetTools(tools);
+    splitter.Build();
+    if (!splitter.IsDone())
+        throw GeometryError("splitAt operation failed");
+
+    // Find the piece on the positive-normal side
+    gp_Dir dir(nx, ny, nz);
+    gp_Pnt refPt(px, py, pz);
+    TopoDS_Shape bestPiece;
+    double bestDot = -1e99;
+
+    for (TopExp_Explorer ex(splitter.Shape(), TopAbs_SOLID); ex.More(); ex.Next()) {
+        Bnd_Box bbox;
+        BRepBndLib::Add(ex.Current(), bbox);
+        double xmin, ymin, zmin, xmax, ymax, zmax;
+        bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+        gp_Pnt center((xmin + xmax) / 2, (ymin + ymax) / 2, (zmin + zmax) / 2);
+        gp_Vec toCenter(refPt, center);
+        double dot = toCenter.X() * dir.X() + toCenter.Y() * dir.Y() + toCenter.Z() * dir.Z();
+        if (dot > bestDot) {
+            bestDot = dot;
+            bestPiece = ex.Current();
+        }
+    }
+
+    if (bestPiece.IsNull())
+        throw GeometryError("splitAt: no solid piece found after split");
+
+    return std::make_shared<Shape>(bestPiece);
 }
 
 // =============================================================================

@@ -333,6 +333,75 @@ void ShapeRegistry::registerDefaults() {
             return Value::makeFaceRef(self->asShape()->bottomFace());
         });
 
+    registerTypedMethod(ValueType::SHAPE, "linearPattern",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dx = 0, dy = 0, dz = 0;
+            int count = 0;
+            if (args.size() >= 2 && args[0]->type() == ValueType::VECTOR) {
+                const auto& v = args[0]->asVector();
+                dx = v.size() > 0 ? v[0] : 0;
+                dy = v.size() > 1 ? v[1] : 0;
+                dz = v.size() > 2 ? v[2] : 0;
+                count = static_cast<int>(args[1]->asNumber());
+            } else {
+                throw EvalError("linearPattern() requires (vector, count)");
+            }
+            return Value::makeShape(self->asShape()->linearPattern(dx, dy, dz, count));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "circularPattern",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2 || args[0]->type() != ValueType::VECTOR)
+                throw EvalError("circularPattern() requires (axis_vector, count[, angle])");
+            const auto& v = args[0]->asVector();
+            double ax = v.size() > 0 ? v[0] : 0;
+            double ay = v.size() > 1 ? v[1] : 0;
+            double az = v.size() > 2 ? v[2] : 0;
+            int count = static_cast<int>(args[1]->asNumber());
+            double angle = args.size() > 2 ? args[2]->asNumber() : 360.0;
+            return Value::makeShape(self->asShape()->circularPattern(ax, ay, az, count, angle));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "mirrorFeature",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double nx = 0, ny = 0, nz = 0;
+            if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
+                const auto& v = args[0]->asVector();
+                nx = v.size() > 0 ? v[0] : 0;
+                ny = v.size() > 1 ? v[1] : 0;
+                nz = v.size() > 2 ? v[2] : 0;
+            } else if (args.size() == 3) {
+                nx = args[0]->asNumber();
+                ny = args[1]->asNumber();
+                nz = args[2]->asNumber();
+            } else {
+                throw EvalError("mirrorFeature() requires a normal vector");
+            }
+            return Value::makeShape(self->asShape()->mirrorFeature(nx, ny, nz));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "draft",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2)
+                throw EvalError("draft() requires (angle, direction_vector)");
+            double angle = args[0]->asNumber();
+            const auto& v = args[1]->asVector();
+            if (v.size() < 3)
+                throw EvalError("draft() direction vector must have 3 components");
+            return Value::makeShape(self->asShape()->draft(angle, v[0], v[1], v[2]));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "splitAt",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2)
+                throw EvalError("splitAt() requires (point_vector, normal_vector)");
+            const auto& p = args[0]->asVector();
+            const auto& n = args[1]->asVector();
+            if (p.size() < 3 || n.size() < 3)
+                throw EvalError("splitAt() vectors must have 3 components");
+            return Value::makeShape(self->asShape()->splitAt(p[0], p[1], p[2], n[0], n[1], n[2]));
+        });
+
     // =========================================================================
     // Typed Methods — FACE_REF
     // =========================================================================

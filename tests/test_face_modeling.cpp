@@ -478,3 +478,80 @@ TEST(FaceRefTest, CounterboreChainedWithThroughHole) {
     auto result2 = result->face(">Z")->throughHole(4, 10, 5);
     EXPECT_TRUE(result2->isValid());
 }
+
+// =============================================================================
+// Feature Pattern Tests
+// =============================================================================
+
+TEST(ShapeTest, LinearPatternBox) {
+    auto post = Shape::createCylinder(3, 20);
+    auto row = post->linearPattern(15, 0, 0, 4);
+    EXPECT_TRUE(row->isValid());
+}
+
+TEST(ShapeTest, LinearPatternValid) {
+    auto box = Shape::createBox(5, 5, 5);
+    auto pattern = box->linearPattern(10, 0, 0, 3);
+    EXPECT_TRUE(pattern->isValid());
+    // Should have more faces than a single box
+    EXPECT_GT(pattern->faces()->count(), 6);
+}
+
+TEST(ShapeTest, LinearPatternCount1NoOp) {
+    auto box = Shape::createBox(10, 10, 10);
+    auto pattern = box->linearPattern(10, 0, 0, 1);
+    EXPECT_TRUE(pattern->isValid());
+    EXPECT_EQ(pattern->faces()->count(), 6);
+}
+
+TEST(ShapeTest, CircularPatternBox) {
+    auto post = Shape::createBox(5, 5, 20);
+    post = post->translate(15, 0, 0);
+    auto pattern = post->circularPattern(0, 0, 1, 4);
+    EXPECT_TRUE(pattern->isValid());
+}
+
+TEST(ShapeTest, CircularPatternPartialAngle) {
+    auto post = Shape::createBox(5, 5, 20);
+    post = post->translate(15, 0, 0);
+    auto pattern = post->circularPattern(0, 0, 1, 3, 180);
+    EXPECT_TRUE(pattern->isValid());
+}
+
+TEST(ShapeTest, MirrorFeatureSymmetric) {
+    auto box = Shape::createBox(10, 10, 10);
+    auto mirrored = box->translate(20, 0, 0)->mirrorFeature(1, 0, 0);
+    EXPECT_TRUE(mirrored->isValid());
+    // Mirrored + original should have more faces
+    EXPECT_GT(mirrored->faces()->count(), 6);
+}
+
+TEST(ShapeTest, MirrorFeatureVsMirror) {
+    auto box = Shape::createBox(10, 10, 10);
+    auto shifted = box->translate(20, 0, 0);
+    // mirrorFeature fuses, mirror replaces
+    auto mirrored = shifted->mirror(1, 0, 0);
+    auto mirrorFeat = shifted->mirrorFeature(1, 0, 0);
+    EXPECT_EQ(mirrored->faces()->count(), 6);  // still a single box
+    EXPECT_GT(mirrorFeat->faces()->count(), 6); // two boxes fused
+}
+
+TEST(ShapeTest, DraftOnBox) {
+    auto box = Shape::createBox(20, 20, 30);
+    auto drafted = box->draft(5, 0, 0, 1);
+    EXPECT_TRUE(drafted->isValid());
+}
+
+TEST(ShapeTest, SplitAtMiddle) {
+    auto box = Shape::createBox(20, 20, 20);
+    auto half = box->splitAt(0, 0, 0, 1, 0, 0);
+    EXPECT_TRUE(half->isValid());
+    // Half should have fewer faces or smaller volume
+    EXPECT_TRUE(half->faces()->count() >= 5);
+}
+
+TEST(ShapeTest, SplitAtReturnsValid) {
+    auto cyl = Shape::createCylinder(10, 30);
+    auto half = cyl->splitAt(0, 0, 15, 0, 0, 1);
+    EXPECT_TRUE(half->isValid());
+}

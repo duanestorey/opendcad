@@ -70,6 +70,15 @@ public:
     // --- Shell ---
     ShapePtr shell( double thickness ) const;
 
+    // --- Feature Patterns ---
+    ShapePtr linearPattern(double dx, double dy, double dz, int count) const;
+    ShapePtr circularPattern(double ax, double ay, double az, int count, double angleDeg = 360.0) const;
+    ShapePtr mirrorFeature(double nx, double ny, double nz) const;
+
+    // --- Advanced Operations ---
+    ShapePtr draft(double angleDeg, double nx, double ny, double nz) const;
+    ShapePtr splitAt(double px, double py, double pz, double nx, double ny, double nz) const;
+
     // --- Axis Shortcuts ---
     ShapePtr x( double x ) { return translate( x, 0, 0 ); }
     ShapePtr y( double y ) { return translate( 0, y, 0 ); }
