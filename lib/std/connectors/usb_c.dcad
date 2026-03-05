@@ -1,0 +1,83 @@
+// =============================================================================
+// USB Type-C Connector Cutout and Body
+// =============================================================================
+//
+// Standard USB-C receptacle dimensions per USB Type-C specification.
+// The connector opening is approximately 9.0mm wide x 3.3mm tall with
+// rounded ends (stadium/oblong shape).
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout shape for USB-C connector
+//   body(tolerance)    - Solid body representing the connector housing
+//
+// Reference: USB Type-C Cable and Connector Specification, Release 2.1
+// =============================================================================
+
+// Connector opening dimensions (mm)
+const opening_width = 9.0;
+const opening_height = 3.3;
+const corner_radius = 1.0;
+
+// Connector housing/body dimensions (mm)
+const body_width = 9.0;
+const body_height = 3.3;
+const body_depth = 7.5;
+
+// Flange (overmold) dimensions for panel-mount variants
+const flange_width = 12.0;
+const flange_height = 6.5;
+const flange_thickness = 1.0;
+
+// Panel cutout depth (how deep to cut through the panel)
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for a USB-C connector
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = opening_width + tolerance * 2;
+    let h = opening_height + tolerance * 2;
+    let r = corner_radius + tolerance;
+
+    // USB-C has a rounded rectangular (stadium) shape
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the USB-C connector housing
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = body_width + tolerance * 2;
+    let h = body_height + tolerance * 2;
+    let d = body_depth + tolerance;
+    let r = corner_radius + tolerance;
+
+    // Main connector body
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    // Flange plate (sits against the panel)
+    let fw = flange_width + tolerance * 2;
+    let fh = flange_height + tolerance * 2;
+    let flange = box(fw, flange_thickness, fh)
+        .translate([-fw / 2, -flange_thickness, -fh / 2]);
+
+    let shape = housing.fuse(flange);
+
+    return shape;
+}
+
+export cutout;
+export body;

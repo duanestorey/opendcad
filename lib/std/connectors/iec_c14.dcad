@@ -1,0 +1,111 @@
+// =============================================================================
+// IEC C14 Power Inlet Connector Cutout and Body
+// =============================================================================
+//
+// Standard IEC 60320 C14 power inlet (male connector, panel-mount).
+// This is the standard 3-pin power inlet found on computers, monitors,
+// and other equipment. Mates with IEC C13 power cord.
+//
+// Panel cutout is approximately 27.5mm wide x 20.0mm tall.
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout shape for IEC C14 inlet
+//   body(tolerance)    - Solid body representing the connector housing
+//
+// Reference: IEC 60320, C14 appliance inlet
+// =============================================================================
+
+// Panel cutout dimensions (mm)
+const opening_width = 27.5;
+const opening_height = 20.0;
+const corner_radius = 2.0;
+
+// Connector body dimensions (mm)
+const body_width = 27.5;
+const body_height = 20.0;
+const body_depth = 25.0;
+
+// Mounting flange dimensions (mm)
+const flange_width = 31.0;
+const flange_height = 24.0;
+const flange_thickness = 1.5;
+
+// Mounting screw dimensions
+const mount_hole_spacing_h = 40.0;  // horizontal center-to-center
+const mount_hole_diameter = 3.5;    // M3 clearance hole
+const mount_hole_radius = 1.75;
+
+// Pin recess dimensions (inside the connector)
+const pin_recess_width = 22.0;
+const pin_recess_height = 16.0;
+const pin_recess_depth = 10.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for an IEC C14 power inlet
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = opening_width + tolerance * 2;
+    let h = opening_height + tolerance * 2;
+    let r = corner_radius + tolerance;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the IEC C14 connector housing
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = body_width + tolerance * 2;
+    let h = body_height + tolerance * 2;
+    let d = body_depth + tolerance;
+    let r = corner_radius + tolerance;
+
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return housing;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_with_screws - Creates cutout with mounting screw holes
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance (default 0.2mm)
+//   depth      - Depth of the cutout (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_with_screws(tolerance = 0.2, depth = 10.0) {
+    let main = cutout(tolerance, depth);
+
+    // Left mounting hole
+    let hole_r = mount_hole_radius + tolerance;
+    let hole_l = cylinder(hole_r, depth)
+        .rotate([90, 0, 0])
+        .translate([-mount_hole_spacing_h / 2, 0, 0]);
+
+    // Right mounting hole
+    let hole_r_shape = cylinder(hole_r, depth)
+        .rotate([90, 0, 0])
+        .translate([mount_hole_spacing_h / 2, 0, 0]);
+
+    let shape = main.fuse(hole_l).fuse(hole_r_shape);
+
+    return shape;
+}
+
+export cutout;
+export body;

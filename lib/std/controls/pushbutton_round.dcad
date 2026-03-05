@@ -1,0 +1,105 @@
+// =============================================================================
+// Round Pushbutton Switch Cutout and Body
+// =============================================================================
+//
+// Parametric round momentary pushbutton switch, panel-mount style.
+// Common diameters: 12mm, 16mm, 19mm, 22mm.
+//
+// The default is a 12mm pushbutton, which is one of the most common
+// sizes used in electronics enclosures.
+//
+// Exports:
+//   cutout(diameter, tolerance)  - Round panel cutout
+//   body(diameter, tolerance)    - Solid body representing the switch
+//
+// Reference: Standard panel-mount momentary pushbutton switches
+// =============================================================================
+
+// Default dimensions (mm)
+const default_diameter = 12.0;
+const default_radius = 6.0;
+
+// Body dimensions (behind panel)
+const body_length = 20.0;
+const nut_thickness = 3.0;
+
+// Button cap dimensions (in front of panel)
+const cap_protrusion = 3.0;
+
+// Common standard sizes for reference
+const size_12mm = 12.0;
+const size_16mm = 16.0;
+const size_19mm = 19.0;
+const size_22mm = 22.0;
+
+// Anti-rotation flat dimensions
+const flat_width = 2.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a round panel cutout for a pushbutton
+// -----------------------------------------------------------------------------
+// Parameters:
+//   diameter   - Mounting hole diameter (default 12.0mm)
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(diameter = 12.0, tolerance = 0.2, depth = 10.0) {
+    let r = diameter / 2 + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the pushbutton switch
+// -----------------------------------------------------------------------------
+// Parameters:
+//   diameter   - Nominal diameter (default 12.0mm)
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(diameter = 12.0, tolerance = 0.2) {
+    let r = diameter / 2 + tolerance;
+
+    // Thread barrel (goes through panel)
+    let barrel = cylinder(r, body_length)
+        .rotate([90, 0, 0]);
+
+    // Button cap (protrudes from front of panel)
+    let cap_r = r + 1.0;
+    let cap = cylinder(cap_r, cap_protrusion)
+        .rotate([90, 0, 0])
+        .translate([0, cap_protrusion, 0]);
+
+    let shape = barrel.fuse(cap);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_with_flat - Creates a cutout with anti-rotation flat
+// -----------------------------------------------------------------------------
+// Parameters:
+//   diameter   - Mounting hole diameter (default 12.0mm)
+//   tolerance  - Extra clearance (default 0.2mm)
+//   depth      - Depth of the cutout (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_with_flat(diameter = 12.0, tolerance = 0.2, depth = 10.0) {
+    let main = cutout(diameter, tolerance, depth);
+
+    // Anti-rotation flat slot
+    let r = diameter / 2 + tolerance;
+    let flat = box(flat_width, depth, 2.0)
+        .translate([-flat_width / 2, 0, r]);
+
+    let shape = main.fuse(flat);
+
+    return shape;
+}
+
+export cutout;
+export body;

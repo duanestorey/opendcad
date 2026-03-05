@@ -1,0 +1,127 @@
+// =============================================================================
+// 2.8" TFT LCD Display Module (ILI9341)
+// =============================================================================
+//
+// Common 2.8" TFT LCD display module, typically 240x320 pixels with
+// ILI9341 driver. Usually includes a resistive or capacitive touchscreen.
+// SPI interface with SD card slot on the back.
+//
+// Viewing area:    ~57.0mm x 43.0mm
+// PCB dimensions:  ~77.0mm x 50.0mm (varies by manufacturer)
+// Mounting holes:  4x M2.5
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout for the TFT viewing window
+//   body(tolerance)    - Solid body representing the full TFT module
+//
+// Reference: Generic ILI9341 2.8" TFT LCD module
+// =============================================================================
+
+// Active/viewing area dimensions (mm)
+const view_width = 57.0;
+const view_height = 43.0;
+const view_corner_radius = 0.5;
+
+// Display glass/touchscreen dimensions (mm)
+const glass_width = 60.5;
+const glass_height = 46.5;
+const glass_thickness = 3.0;
+
+// PCB dimensions (mm)
+const pcb_width = 77.0;
+const pcb_height = 50.0;
+const pcb_thickness = 1.6;
+
+// Overall module thickness (including back components)
+const module_thickness = 7.0;
+
+// Mounting hole specifications
+const mount_hole_spacing_x = 72.0;
+const mount_hole_spacing_y = 45.0;
+const mount_hole_diameter = 2.5;     // M2.5 clearance
+const mount_hole_radius = 1.25;
+
+// Offset of viewing area center from PCB center
+const view_offset_x = 0.0;
+const view_offset_y = 0.0;
+
+// Header pin area (at bottom of PCB)
+const header_width = 42.0;
+const header_height = 2.5;
+const header_depth = 8.5;
+
+// SD card slot (on back of some modules)
+const sd_slot_width = 14.0;
+const sd_slot_height = 2.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for the 2.8" TFT viewing window
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = glass_width + tolerance * 2;
+    let h = glass_height + tolerance * 2;
+    let r = view_corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the full 2.8" TFT module
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = pcb_width + tolerance * 2;
+    let h = pcb_height + tolerance * 2;
+
+    // PCB layer
+    let pcb = box(w, pcb_thickness, h)
+        .translate([-w / 2, 0, -h / 2]);
+
+    // Display glass/touchscreen on front
+    let gw = glass_width + tolerance * 2;
+    let gh = glass_height + tolerance * 2;
+    let glass = box(gw, glass_thickness, gh)
+        .translate([-gw / 2, -glass_thickness, -gh / 2]);
+
+    let shape = pcb.fuse(glass);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// mounting_holes - Creates the 4 mounting hole cylinders
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to hole radius (default 0.2mm)
+//   depth      - Depth of the hole cylinders (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn mounting_holes(tolerance = 0.2, depth = 10.0) {
+    let r = mount_hole_radius + tolerance;
+    let dx = mount_hole_spacing_x / 2;
+    let dy = mount_hole_spacing_y / 2;
+
+    let h1 = cylinder(r, depth).translate([-dx, 0, -dy]);
+    let h2 = cylinder(r, depth).translate([ dx, 0, -dy]);
+    let h3 = cylinder(r, depth).translate([-dx, 0,  dy]);
+    let h4 = cylinder(r, depth).translate([ dx, 0,  dy]);
+
+    let shape = h1.fuse(h2).fuse(h3).fuse(h4);
+
+    return shape;
+}
+
+export cutout;
+export body;

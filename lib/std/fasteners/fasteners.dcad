@@ -1,0 +1,634 @@
+// =============================================================================
+// Metric Fastener Library - M2 through M6
+// =============================================================================
+//
+// Comprehensive lookup functions for metric fastener hardware dimensions.
+// All dimensions are in millimeters and follow ISO standards.
+//
+// Supported sizes: M2, M2.5, M3, M4, M5, M6
+//
+// Functions provided:
+//   Clearance holes    - clearance_hole(size, fit, depth)
+//   Tap drill holes    - tap_drill(size, depth)
+//   Standoff bosses    - boss(size, height)
+//   Counterbore        - counterbore(size, depth)
+//   Countersink        - countersink(size)
+//   Nut traps          - nut_trap(size, depth)
+//   Heat-set inserts   - heat_set_hole(size, depth)
+//
+// Reference: ISO 261, ISO 4762, ISO 7380, ISO 4032
+// =============================================================================
+
+// ============================================================
+// M2 Dimensions
+// ============================================================
+const m2_nominal = 2.0;
+const m2_pitch = 0.4;
+
+// Clearance holes (ISO 273): close / normal / loose
+const m2_clearance_close = 2.2;
+const m2_clearance_normal = 2.4;
+const m2_clearance_loose = 2.6;
+
+// Tap drill diameter (nominal - pitch for ~75% thread)
+const m2_tap_drill = 1.6;
+
+// Socket head cap screw (ISO 4762)
+const m2_shcs_head_diameter = 3.8;
+const m2_shcs_head_height = 2.0;
+
+// Button head cap screw (ISO 7380)
+const m2_bhcs_head_diameter = 3.5;
+const m2_bhcs_head_height = 1.3;
+
+// Nut dimensions (ISO 4032)
+const m2_nut_width_af = 4.0;    // across flats
+const m2_nut_width_ac = 4.62;   // across corners
+const m2_nut_height = 1.6;
+
+// Washer dimensions (ISO 7089)
+const m2_washer_od = 5.0;
+const m2_washer_thickness = 0.3;
+
+// Heat-set insert hole (typical brass knurled insert)
+const m2_insert_hole = 3.2;
+const m2_insert_depth = 3.0;
+
+// Boss (standoff) outer diameter
+const m2_boss_od = 5.0;
+
+// ============================================================
+// M2.5 Dimensions
+// ============================================================
+const m25_nominal = 2.5;
+const m25_pitch = 0.45;
+
+const m25_clearance_close = 2.7;
+const m25_clearance_normal = 2.9;
+const m25_clearance_loose = 3.1;
+
+const m25_tap_drill = 2.05;
+
+const m25_shcs_head_diameter = 4.5;
+const m25_shcs_head_height = 2.5;
+
+const m25_bhcs_head_diameter = 4.5;
+const m25_bhcs_head_height = 1.5;
+
+const m25_nut_width_af = 5.0;
+const m25_nut_width_ac = 5.77;
+const m25_nut_height = 2.0;
+
+const m25_washer_od = 6.0;
+const m25_washer_thickness = 0.5;
+
+const m25_insert_hole = 3.5;
+const m25_insert_depth = 4.0;
+
+const m25_boss_od = 6.0;
+
+// ============================================================
+// M3 Dimensions
+// ============================================================
+const m3_nominal = 3.0;
+const m3_pitch = 0.5;
+
+const m3_clearance_close = 3.2;
+const m3_clearance_normal = 3.4;
+const m3_clearance_loose = 3.6;
+
+const m3_tap_drill = 2.5;
+
+const m3_shcs_head_diameter = 5.5;
+const m3_shcs_head_height = 3.0;
+
+const m3_bhcs_head_diameter = 5.7;
+const m3_bhcs_head_height = 1.65;
+
+const m3_nut_width_af = 5.5;
+const m3_nut_width_ac = 6.35;
+const m3_nut_height = 2.4;
+
+const m3_washer_od = 7.0;
+const m3_washer_thickness = 0.5;
+
+const m3_insert_hole = 4.0;
+const m3_insert_depth = 4.5;
+
+const m3_boss_od = 7.0;
+
+// ============================================================
+// M4 Dimensions
+// ============================================================
+const m4_nominal = 4.0;
+const m4_pitch = 0.7;
+
+const m4_clearance_close = 4.3;
+const m4_clearance_normal = 4.5;
+const m4_clearance_loose = 4.8;
+
+const m4_tap_drill = 3.3;
+
+const m4_shcs_head_diameter = 7.0;
+const m4_shcs_head_height = 4.0;
+
+const m4_bhcs_head_diameter = 7.6;
+const m4_bhcs_head_height = 2.2;
+
+const m4_nut_width_af = 7.0;
+const m4_nut_width_ac = 8.08;
+const m4_nut_height = 3.2;
+
+const m4_washer_od = 9.0;
+const m4_washer_thickness = 0.8;
+
+const m4_insert_hole = 5.6;
+const m4_insert_depth = 5.7;
+
+const m4_boss_od = 9.0;
+
+// ============================================================
+// M5 Dimensions
+// ============================================================
+const m5_nominal = 5.0;
+const m5_pitch = 0.8;
+
+const m5_clearance_close = 5.3;
+const m5_clearance_normal = 5.5;
+const m5_clearance_loose = 5.8;
+
+const m5_tap_drill = 4.2;
+
+const m5_shcs_head_diameter = 8.5;
+const m5_shcs_head_height = 5.0;
+
+const m5_bhcs_head_diameter = 9.5;
+const m5_bhcs_head_height = 2.75;
+
+const m5_nut_width_af = 8.0;
+const m5_nut_width_ac = 9.24;
+const m5_nut_height = 4.7;
+
+const m5_washer_od = 10.0;
+const m5_washer_thickness = 1.0;
+
+const m5_insert_hole = 6.4;
+const m5_insert_depth = 6.35;
+
+const m5_boss_od = 10.0;
+
+// ============================================================
+// M6 Dimensions
+// ============================================================
+const m6_nominal = 6.0;
+const m6_pitch = 1.0;
+
+const m6_clearance_close = 6.4;
+const m6_clearance_normal = 6.6;
+const m6_clearance_loose = 7.0;
+
+const m6_tap_drill = 5.0;
+
+const m6_shcs_head_diameter = 10.0;
+const m6_shcs_head_height = 6.0;
+
+const m6_bhcs_head_diameter = 10.5;
+const m6_bhcs_head_height = 3.3;
+
+const m6_nut_width_af = 10.0;
+const m6_nut_width_ac = 11.55;
+const m6_nut_height = 5.2;
+
+const m6_washer_od = 12.0;
+const m6_washer_thickness = 1.6;
+
+const m6_insert_hole = 8.0;
+const m6_insert_depth = 8.0;
+
+const m6_boss_od = 12.0;
+
+
+// =============================================================================
+// Shape Generation Functions
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// clearance_hole - Creates a clearance hole for a given metric size
+// -----------------------------------------------------------------------------
+// Parameters:
+//   size       - Metric size (2, 2.5, 3, 4, 5, or 6)
+//   fit        - Fit type: "close", "normal", or "loose" (default "normal")
+//   depth      - Hole depth (default 10.0mm)
+//   tolerance  - Additional clearance (default 0.0mm, already included in fit)
+//
+// The clearance diameters already include standard fit allowances per ISO 273.
+// The tolerance parameter adds extra clearance beyond the standard.
+// -----------------------------------------------------------------------------
+fn clearance_hole_m2(fit = "normal", depth = 10.0, tolerance = 0.0) {
+    let r = m2_clearance_normal / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn clearance_hole_m25(fit = "normal", depth = 10.0, tolerance = 0.0) {
+    let r = m25_clearance_normal / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn clearance_hole_m3(fit = "normal", depth = 10.0, tolerance = 0.0) {
+    let r = m3_clearance_normal / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn clearance_hole_m4(fit = "normal", depth = 10.0, tolerance = 0.0) {
+    let r = m4_clearance_normal / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn clearance_hole_m5(fit = "normal", depth = 10.0, tolerance = 0.0) {
+    let r = m5_clearance_normal / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn clearance_hole_m6(fit = "normal", depth = 10.0, tolerance = 0.0) {
+    let r = m6_clearance_normal / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+// -----------------------------------------------------------------------------
+// tap_drill - Creates a tap drill hole for a given metric size
+// -----------------------------------------------------------------------------
+// Parameters:
+//   depth      - Hole depth (default 10.0mm)
+//   tolerance  - Additional clearance (default 0.0mm)
+// -----------------------------------------------------------------------------
+fn tap_drill_m2(depth = 10.0, tolerance = 0.0) {
+    let r = m2_tap_drill / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn tap_drill_m25(depth = 10.0, tolerance = 0.0) {
+    let r = m25_tap_drill / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn tap_drill_m3(depth = 10.0, tolerance = 0.0) {
+    let r = m3_tap_drill / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn tap_drill_m4(depth = 10.0, tolerance = 0.0) {
+    let r = m4_tap_drill / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn tap_drill_m5(depth = 10.0, tolerance = 0.0) {
+    let r = m5_tap_drill / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn tap_drill_m6(depth = 10.0, tolerance = 0.0) {
+    let r = m6_tap_drill / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+// -----------------------------------------------------------------------------
+// boss - Creates a cylindrical standoff boss for screw mounting
+// -----------------------------------------------------------------------------
+// The boss is a solid cylinder with a clearance or tap hole through it.
+// Commonly used in injection-molded or 3D-printed enclosures.
+//
+// Parameters:
+//   height     - Boss height (default 8.0mm)
+//   tolerance  - Additional clearance on inner hole (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn boss_m2(height = 8.0, tolerance = 0.2) {
+    let outer_r = m2_boss_od / 2;
+    let inner_r = m2_tap_drill / 2 + tolerance;
+
+    let outer = cylinder(outer_r, height);
+    let inner = cylinder(inner_r, height);
+    let shape = outer.cut(inner);
+
+    return shape;
+}
+
+fn boss_m25(height = 8.0, tolerance = 0.2) {
+    let outer_r = m25_boss_od / 2;
+    let inner_r = m25_tap_drill / 2 + tolerance;
+
+    let outer = cylinder(outer_r, height);
+    let inner = cylinder(inner_r, height);
+    let shape = outer.cut(inner);
+
+    return shape;
+}
+
+fn boss_m3(height = 8.0, tolerance = 0.2) {
+    let outer_r = m3_boss_od / 2;
+    let inner_r = m3_tap_drill / 2 + tolerance;
+
+    let outer = cylinder(outer_r, height);
+    let inner = cylinder(inner_r, height);
+    let shape = outer.cut(inner);
+
+    return shape;
+}
+
+fn boss_m4(height = 10.0, tolerance = 0.2) {
+    let outer_r = m4_boss_od / 2;
+    let inner_r = m4_tap_drill / 2 + tolerance;
+
+    let outer = cylinder(outer_r, height);
+    let inner = cylinder(inner_r, height);
+    let shape = outer.cut(inner);
+
+    return shape;
+}
+
+fn boss_m5(height = 10.0, tolerance = 0.2) {
+    let outer_r = m5_boss_od / 2;
+    let inner_r = m5_tap_drill / 2 + tolerance;
+
+    let outer = cylinder(outer_r, height);
+    let inner = cylinder(inner_r, height);
+    let shape = outer.cut(inner);
+
+    return shape;
+}
+
+fn boss_m6(height = 12.0, tolerance = 0.2) {
+    let outer_r = m6_boss_od / 2;
+    let inner_r = m6_tap_drill / 2 + tolerance;
+
+    let outer = cylinder(outer_r, height);
+    let inner = cylinder(inner_r, height);
+    let shape = outer.cut(inner);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// counterbore - Creates a counterbore pocket for socket head cap screws
+// -----------------------------------------------------------------------------
+// The counterbore is a stepped hole: a larger diameter pocket for the
+// screw head on top, and a clearance hole through the rest.
+//
+// Parameters:
+//   cb_depth   - Depth of the counterbore pocket (default: head height + 0.5mm)
+//   hole_depth - Total through-hole depth (default 10.0mm)
+//   tolerance  - Additional clearance (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn counterbore_m2(cb_depth = 2.5, hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m2_shcs_head_diameter / 2 + tolerance;
+    let hole_r = m2_clearance_normal / 2 + tolerance;
+
+    let pocket = cylinder(head_r, cb_depth);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = pocket.fuse(hole);
+
+    return shape;
+}
+
+fn counterbore_m3(cb_depth = 3.5, hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m3_shcs_head_diameter / 2 + tolerance;
+    let hole_r = m3_clearance_normal / 2 + tolerance;
+
+    let pocket = cylinder(head_r, cb_depth);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = pocket.fuse(hole);
+
+    return shape;
+}
+
+fn counterbore_m4(cb_depth = 4.5, hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m4_shcs_head_diameter / 2 + tolerance;
+    let hole_r = m4_clearance_normal / 2 + tolerance;
+
+    let pocket = cylinder(head_r, cb_depth);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = pocket.fuse(hole);
+
+    return shape;
+}
+
+fn counterbore_m5(cb_depth = 5.5, hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m5_shcs_head_diameter / 2 + tolerance;
+    let hole_r = m5_clearance_normal / 2 + tolerance;
+
+    let pocket = cylinder(head_r, cb_depth);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = pocket.fuse(hole);
+
+    return shape;
+}
+
+fn counterbore_m6(cb_depth = 6.5, hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m6_shcs_head_diameter / 2 + tolerance;
+    let hole_r = m6_clearance_normal / 2 + tolerance;
+
+    let pocket = cylinder(head_r, cb_depth);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = pocket.fuse(hole);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// countersink - Creates a 90-degree countersink cone + clearance hole
+// -----------------------------------------------------------------------------
+// The countersink is a conical recess for flat-head screws. The cone
+// angle is 90 degrees (standard for metric flat head screws per ISO 10642).
+//
+// Parameters:
+//   hole_depth - Total through-hole depth (default 10.0mm)
+//   tolerance  - Additional clearance (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn countersink_m3(hole_depth = 10.0, tolerance = 0.2) {
+    // Flat head screw head diameter is approximately 2x nominal
+    let head_r = m3_nominal + tolerance;
+    let hole_r = m3_clearance_normal / 2 + tolerance;
+
+    // Cone depth = head_r for 90-degree cone
+    let cone = cylinder(head_r, head_r);  // approximation; true countersink is conical
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = cone.fuse(hole);
+
+    return shape;
+}
+
+fn countersink_m4(hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m4_nominal + tolerance;
+    let hole_r = m4_clearance_normal / 2 + tolerance;
+
+    let cone = cylinder(head_r, head_r);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = cone.fuse(hole);
+
+    return shape;
+}
+
+fn countersink_m5(hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m5_nominal + tolerance;
+    let hole_r = m5_clearance_normal / 2 + tolerance;
+
+    let cone = cylinder(head_r, head_r);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = cone.fuse(hole);
+
+    return shape;
+}
+
+fn countersink_m6(hole_depth = 10.0, tolerance = 0.2) {
+    let head_r = m6_nominal + tolerance;
+    let hole_r = m6_clearance_normal / 2 + tolerance;
+
+    let cone = cylinder(head_r, head_r);
+    let hole = cylinder(hole_r, hole_depth);
+    let shape = cone.fuse(hole);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// nut_trap - Creates a hexagonal nut trap pocket
+// -----------------------------------------------------------------------------
+// A nut trap is a hexagonal pocket sized to capture a nut, preventing it
+// from spinning. The hex is defined by the across-flats (AF) dimension.
+// Since we don't have a native hex primitive, we approximate with a
+// box using the across-corners dimension.
+//
+// Parameters:
+//   depth      - Depth of the nut trap pocket (default: nut height + 0.3mm)
+//   tolerance  - Additional clearance (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn nut_trap_m2(depth = 1.9, tolerance = 0.2) {
+    // Approximate hex with across-corners box
+    let ac = m2_nut_width_ac + tolerance * 2;
+    let af = m2_nut_width_af + tolerance * 2;
+    let shape = box(ac, depth, af)
+        .translate([-ac / 2, 0, -af / 2]);
+    return shape;
+}
+
+fn nut_trap_m25(depth = 2.3, tolerance = 0.2) {
+    let ac = m25_nut_width_ac + tolerance * 2;
+    let af = m25_nut_width_af + tolerance * 2;
+    let shape = box(ac, depth, af)
+        .translate([-ac / 2, 0, -af / 2]);
+    return shape;
+}
+
+fn nut_trap_m3(depth = 2.7, tolerance = 0.2) {
+    let ac = m3_nut_width_ac + tolerance * 2;
+    let af = m3_nut_width_af + tolerance * 2;
+    let shape = box(ac, depth, af)
+        .translate([-ac / 2, 0, -af / 2]);
+    return shape;
+}
+
+fn nut_trap_m4(depth = 3.5, tolerance = 0.2) {
+    let ac = m4_nut_width_ac + tolerance * 2;
+    let af = m4_nut_width_af + tolerance * 2;
+    let shape = box(ac, depth, af)
+        .translate([-ac / 2, 0, -af / 2]);
+    return shape;
+}
+
+fn nut_trap_m5(depth = 5.0, tolerance = 0.2) {
+    let ac = m5_nut_width_ac + tolerance * 2;
+    let af = m5_nut_width_af + tolerance * 2;
+    let shape = box(ac, depth, af)
+        .translate([-ac / 2, 0, -af / 2]);
+    return shape;
+}
+
+fn nut_trap_m6(depth = 5.5, tolerance = 0.2) {
+    let ac = m6_nut_width_ac + tolerance * 2;
+    let af = m6_nut_width_af + tolerance * 2;
+    let shape = box(ac, depth, af)
+        .translate([-ac / 2, 0, -af / 2]);
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// heat_set_hole - Creates a hole sized for press-in heat-set threaded inserts
+// -----------------------------------------------------------------------------
+// Heat-set inserts (brass, knurled) are commonly used in 3D-printed and
+// injection-molded parts. The hole diameter is slightly larger than the
+// insert OD to allow it to be pressed in with a soldering iron.
+//
+// Parameters:
+//   depth      - Hole depth (default: insert depth + 1mm)
+//   tolerance  - Additional clearance (default 0.0mm; sizing already accounts
+//                for the insert press-fit)
+// -----------------------------------------------------------------------------
+fn heat_set_hole_m2(depth = 4.0, tolerance = 0.0) {
+    let r = m2_insert_hole / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn heat_set_hole_m25(depth = 5.0, tolerance = 0.0) {
+    let r = m25_insert_hole / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn heat_set_hole_m3(depth = 5.5, tolerance = 0.0) {
+    let r = m3_insert_hole / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn heat_set_hole_m4(depth = 6.7, tolerance = 0.0) {
+    let r = m4_insert_hole / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn heat_set_hole_m5(depth = 7.35, tolerance = 0.0) {
+    let r = m5_insert_hole / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+fn heat_set_hole_m6(depth = 9.0, tolerance = 0.0) {
+    let r = m6_insert_hole / 2 + tolerance;
+    return cylinder(r, depth);
+}
+
+// Export all primary functions
+export clearance_hole_m2;
+export clearance_hole_m25;
+export clearance_hole_m3;
+export clearance_hole_m4;
+export clearance_hole_m5;
+export clearance_hole_m6;
+export tap_drill_m2;
+export tap_drill_m25;
+export tap_drill_m3;
+export tap_drill_m4;
+export tap_drill_m5;
+export tap_drill_m6;
+export boss_m2;
+export boss_m25;
+export boss_m3;
+export boss_m4;
+export boss_m5;
+export boss_m6;
+export counterbore_m2;
+export counterbore_m3;
+export counterbore_m4;
+export counterbore_m5;
+export counterbore_m6;
+export countersink_m3;
+export countersink_m4;
+export countersink_m5;
+export countersink_m6;
+export nut_trap_m2;
+export nut_trap_m25;
+export nut_trap_m3;
+export nut_trap_m4;
+export nut_trap_m5;
+export nut_trap_m6;
+export heat_set_hole_m2;
+export heat_set_hole_m25;
+export heat_set_hole_m3;
+export heat_set_hole_m4;
+export heat_set_hole_m5;
+export heat_set_hole_m6;

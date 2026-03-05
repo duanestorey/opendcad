@@ -1,0 +1,91 @@
+// =============================================================================
+// Toggle Switch Cutout and Body
+// =============================================================================
+//
+// Standard miniature toggle switch (SPDT/DPDT), panel-mount. The mounting
+// hole is typically 6.2mm in diameter. These are the common bat-handle
+// style toggle switches.
+//
+// Mounting hole:   6.2mm diameter
+// Body behind panel: ~13mm x 8mm x 8mm
+// Toggle arm:      ~12mm above panel surface
+//
+// Exports:
+//   cutout(tolerance)  - Round panel cutout for the toggle switch
+//   body(tolerance)    - Solid body representing the switch
+//
+// Reference: Standard MTS-series miniature toggle switch
+// =============================================================================
+
+// Mounting hole dimensions (mm)
+const mount_hole_diameter = 6.2;
+const mount_hole_radius = 3.1;
+
+// Body dimensions behind panel (mm)
+const body_width = 13.2;
+const body_height = 7.9;
+const body_depth = 8.0;
+
+// Bushing dimensions (threaded barrel)
+const bushing_diameter = 6.0;
+const bushing_length = 9.0;
+
+// Toggle lever dimensions
+const lever_length = 12.0;
+const lever_diameter = 3.0;
+
+// Nut dimensions
+const nut_diameter = 9.5;
+const nut_thickness = 2.5;
+
+// Solder terminal dimensions
+const terminal_spacing = 4.7;
+const terminal_length = 5.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a round panel cutout for a toggle switch
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let r = mount_hole_radius + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the toggle switch
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let bw = body_width + tolerance * 2;
+    let bh = body_height + tolerance * 2;
+    let bd = body_depth + tolerance;
+
+    // Main body (behind panel)
+    let main = box(bw, bd, bh)
+        .translate([-bw / 2, 0, -bh / 2]);
+
+    // Bushing (through panel)
+    let bushing_r = bushing_diameter / 2 + tolerance;
+    let bushing = cylinder(bushing_r, bushing_length)
+        .rotate([90, 0, 0])
+        .translate([0, -bushing_length + 2, 0]);
+
+    let shape = main.fuse(bushing);
+
+    return shape;
+}
+
+export cutout;
+export body;

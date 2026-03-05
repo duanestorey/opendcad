@@ -1,0 +1,119 @@
+// =============================================================================
+// 0.96" OLED Display Module (SSD1306)
+// =============================================================================
+//
+// Common 0.96" OLED display module using SSD1306 driver, typically
+// 128x64 pixels. Available in I2C (4-pin) and SPI (7-pin) variants.
+//
+// Viewing area:    ~21.7mm x 10.9mm
+// PCB dimensions:  ~27.3mm x 27.8mm (varies by manufacturer)
+// Mounting holes:  2x M2, spaced ~23.5mm apart
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout for the OLED viewing window
+//   body(tolerance)    - Solid body representing the full OLED module
+//
+// Reference: Generic SSD1306 0.96" OLED module
+// =============================================================================
+
+// Active/viewing area dimensions (mm)
+const view_width = 21.7;
+const view_height = 10.9;
+const view_corner_radius = 0.3;
+
+// Display glass dimensions (mm)
+const glass_width = 23.7;
+const glass_height = 12.7;
+const glass_thickness = 1.5;
+
+// PCB dimensions (mm)
+const pcb_width = 27.3;
+const pcb_height = 27.8;
+const pcb_thickness = 1.2;
+
+// Overall module thickness
+const module_thickness = 4.0;
+
+// Mounting hole specifications
+const mount_hole_spacing_x = 23.5;
+const mount_hole_y_offset = 21.0;   // from bottom of PCB
+const mount_hole_diameter = 2.0;    // M2 clearance
+const mount_hole_radius = 1.0;
+
+// Offset of viewing area from PCB center
+// The display is typically near the top of the PCB
+const view_offset_y = 5.0;  // display center is above PCB center
+
+// Header pin area (at bottom of PCB)
+const header_width = 10.0;
+const header_height = 2.5;
+const header_depth = 8.5;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for the OLED viewing window
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = glass_width + tolerance * 2;
+    let h = glass_height + tolerance * 2;
+    let r = view_corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the full OLED module
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = pcb_width + tolerance * 2;
+    let h = pcb_height + tolerance * 2;
+
+    // PCB layer
+    let pcb = box(w, pcb_thickness, h)
+        .translate([-w / 2, 0, -h / 2]);
+
+    // Display glass sitting on PCB
+    let gw = glass_width + tolerance * 2;
+    let gh = glass_height + tolerance * 2;
+    let glass = box(gw, glass_thickness, gh)
+        .translate([-gw / 2, -glass_thickness, -gh / 2 + view_offset_y]);
+
+    let shape = pcb.fuse(glass);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// mounting_holes - Creates the 2 mounting hole cylinders
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to hole radius (default 0.2mm)
+//   depth      - Depth of the hole cylinders (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn mounting_holes(tolerance = 0.2, depth = 10.0) {
+    let r = mount_hole_radius + tolerance;
+    let dx = mount_hole_spacing_x / 2;
+
+    let h1 = cylinder(r, depth).translate([-dx, 0, 0]);
+    let h2 = cylinder(r, depth).translate([ dx, 0, 0]);
+
+    let shape = h1.fuse(h2);
+
+    return shape;
+}
+
+export cutout;
+export body;

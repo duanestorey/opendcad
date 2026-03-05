@@ -1,0 +1,125 @@
+// =============================================================================
+// SD Card Slot Cutout and Body
+// =============================================================================
+//
+// Dimensions for full-size SD card and microSD card slots. These are
+// typically used for panel-mount access to internal card readers or
+// for direct card edge access.
+//
+// Full-size SD: opening ~24.0mm wide x 2.5mm tall
+// MicroSD:     opening ~11.0mm wide x 1.5mm tall
+//
+// Exports:
+//   cutout(tolerance)       - Panel cutout for full-size SD card slot
+//   body(tolerance)         - Body for full-size SD card slot
+//   cutout_micro(tolerance) - Panel cutout for microSD card slot
+//   body_micro(tolerance)   - Body for microSD card slot
+//
+// Reference: SD Physical Layer Specification
+// =============================================================================
+
+// Full-size SD card slot dimensions (mm)
+const sd_opening_width = 24.0;
+const sd_opening_height = 2.5;
+const sd_body_width = 28.0;
+const sd_body_height = 3.5;
+const sd_body_depth = 29.0;
+const sd_corner_radius = 0.3;
+
+// MicroSD card slot dimensions (mm)
+const micro_opening_width = 11.0;
+const micro_opening_height = 1.5;
+const micro_body_width = 14.0;
+const micro_body_height = 2.0;
+const micro_body_depth = 15.0;
+const micro_corner_radius = 0.2;
+
+// SD card physical dimensions (for reference/modeling)
+const sd_card_width = 24.0;
+const sd_card_height = 2.1;
+const sd_card_length = 32.0;
+const micro_card_width = 11.0;
+const micro_card_height = 1.0;
+const micro_card_length = 15.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for a full-size SD card slot
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = sd_opening_width + tolerance * 2;
+    let h = sd_opening_height + tolerance * 2;
+    let r = sd_corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the full-size SD card slot
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = sd_body_width + tolerance * 2;
+    let h = sd_body_height + tolerance * 2;
+    let d = sd_body_depth + tolerance;
+    let r = sd_corner_radius;
+
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return housing;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_micro - Creates a panel cutout for a microSD card slot
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_micro(tolerance = 0.2, depth = 10.0) {
+    let w = micro_opening_width + tolerance * 2;
+    let h = micro_opening_height + tolerance * 2;
+    let r = micro_corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body_micro - Creates a solid representation of the microSD card slot
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body_micro(tolerance = 0.2) {
+    let w = micro_body_width + tolerance * 2;
+    let h = micro_body_height + tolerance * 2;
+    let d = micro_body_depth + tolerance;
+    let r = micro_corner_radius;
+
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return housing;
+}
+
+export cutout;
+export body;

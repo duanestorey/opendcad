@@ -1,0 +1,113 @@
+// =============================================================================
+// Rocker Switch Cutout and Body
+// =============================================================================
+//
+// Parametric rocker switch panel cutout. Rocker switches come in many
+// sizes; common standard sizes include:
+//   - Mini:     15.0mm x 10.0mm
+//   - Standard: 21.0mm x 15.0mm
+//   - Large:    30.0mm x 22.0mm
+//
+// The switch snaps into a rectangular panel cutout.
+//
+// Exports:
+//   cutout(width, height, tolerance)  - Rectangular panel cutout
+//   body(width, height, tolerance)    - Solid body representing the switch
+//
+// Reference: Standard KCD-series rocker switches
+// =============================================================================
+
+// Default dimensions - standard size (mm)
+const default_width = 21.0;
+const default_height = 15.0;
+const corner_radius = 1.0;
+
+// Common standard sizes
+const mini_width = 15.0;
+const mini_height = 10.0;
+const standard_width = 21.0;
+const standard_height = 15.0;
+const large_width = 30.0;
+const large_height = 22.0;
+
+// Body depth behind panel (mm)
+const body_depth = 18.0;
+
+// Bezel/frame dimensions (sits on front of panel)
+const bezel_margin = 2.0;
+const bezel_thickness = 1.5;
+
+// Snap-fit tab dimensions
+const tab_width = 3.0;
+const tab_protrusion = 1.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a rectangular panel cutout for a rocker switch
+// -----------------------------------------------------------------------------
+// Parameters:
+//   width      - Cutout width (default 21.0mm)
+//   height     - Cutout height (default 15.0mm)
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(width = 21.0, height = 15.0, tolerance = 0.2, depth = 10.0) {
+    let w = width + tolerance * 2;
+    let h = height + tolerance * 2;
+    let r = corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the rocker switch
+// -----------------------------------------------------------------------------
+// Parameters:
+//   width      - Nominal width (default 21.0mm)
+//   height     - Nominal height (default 15.0mm)
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(width = 21.0, height = 15.0, tolerance = 0.2) {
+    let w = width + tolerance * 2;
+    let h = height + tolerance * 2;
+    let d = body_depth + tolerance;
+    let r = corner_radius;
+
+    // Body that goes through and behind panel
+    let main = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    // Bezel/frame on front surface
+    let bw = w + bezel_margin * 2;
+    let bh = h + bezel_margin * 2;
+    let bezel = box(bw, bezel_thickness, bh)
+        .translate([-bw / 2, -bezel_thickness, -bh / 2]);
+
+    let shape = main.fuse(bezel);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_mini - Convenience: mini rocker switch cutout (15x10mm)
+// -----------------------------------------------------------------------------
+fn cutout_mini(tolerance = 0.2, depth = 10.0) {
+    return cutout(mini_width, mini_height, tolerance, depth);
+}
+
+// -----------------------------------------------------------------------------
+// cutout_large - Convenience: large rocker switch cutout (30x22mm)
+// -----------------------------------------------------------------------------
+fn cutout_large(tolerance = 0.2, depth = 10.0) {
+    return cutout(large_width, large_height, tolerance, depth);
+}
+
+export cutout;
+export body;

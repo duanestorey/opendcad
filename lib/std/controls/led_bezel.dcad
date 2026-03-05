@@ -1,0 +1,145 @@
+// =============================================================================
+// LED Bezel / Holder Cutout and Body
+// =============================================================================
+//
+// Panel-mount LED bezel holder for standard 3mm (T-1) and 5mm (T-1 3/4)
+// LEDs. The bezel consists of a threaded barrel that goes through the
+// panel and a chrome or plastic bezel ring on the front.
+//
+// 3mm LED: mounting hole ~5.0mm (bezel OD ~6.0mm)
+// 5mm LED: mounting hole ~8.0mm (bezel OD ~10.0mm)
+//
+// Exports:
+//   cutout(led_size, tolerance)  - Round panel cutout for LED bezel
+//   body(led_size, tolerance)    - Solid body representing the bezel
+//
+// Reference: Standard chrome LED bezels (Dialight, Bivar, etc.)
+// =============================================================================
+
+// 3mm LED bezel dimensions (mm)
+const bezel_3mm_hole_diameter = 5.0;
+const bezel_3mm_hole_radius = 2.5;
+const bezel_3mm_ring_diameter = 6.0;
+const bezel_3mm_ring_radius = 3.0;
+const bezel_3mm_ring_thickness = 1.5;
+const bezel_3mm_barrel_length = 8.0;
+
+// 5mm LED bezel dimensions (mm)
+const bezel_5mm_hole_diameter = 8.0;
+const bezel_5mm_hole_radius = 4.0;
+const bezel_5mm_ring_diameter = 10.0;
+const bezel_5mm_ring_radius = 5.0;
+const bezel_5mm_ring_thickness = 2.0;
+const bezel_5mm_barrel_length = 10.0;
+
+// LED physical dimensions (for reference)
+const led_3mm_diameter = 3.0;
+const led_3mm_radius = 1.5;
+const led_5mm_diameter = 5.0;
+const led_5mm_radius = 2.5;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a round panel cutout for an LED bezel
+// -----------------------------------------------------------------------------
+// Parameters:
+//   led_size   - LED size in mm: 3 or 5 (default 5)
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(led_size = 5, tolerance = 0.2, depth = 10.0) {
+    // Select hole radius based on LED size
+    // For 3mm: 2.5mm radius, for 5mm: 4.0mm radius
+    let r = bezel_5mm_hole_radius + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_3mm - Creates a panel cutout for a 3mm LED bezel
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_3mm(tolerance = 0.2, depth = 10.0) {
+    let r = bezel_3mm_hole_radius + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_5mm - Creates a panel cutout for a 5mm LED bezel
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_5mm(tolerance = 0.2, depth = 10.0) {
+    let r = bezel_5mm_hole_radius + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of an LED bezel (5mm default)
+// -----------------------------------------------------------------------------
+// Parameters:
+//   led_size   - LED size in mm: 3 or 5 (default 5)
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(led_size = 5, tolerance = 0.2) {
+    // 5mm bezel dimensions
+    let barrel_r = bezel_5mm_hole_radius + tolerance;
+    let ring_r = bezel_5mm_ring_radius + tolerance;
+    let barrel_len = bezel_5mm_barrel_length;
+    let ring_t = bezel_5mm_ring_thickness;
+
+    // Barrel (through panel)
+    let barrel = cylinder(barrel_r, barrel_len)
+        .rotate([90, 0, 0]);
+
+    // Front bezel ring
+    let ring = cylinder(ring_r, ring_t)
+        .rotate([90, 0, 0])
+        .translate([0, ring_t, 0]);
+
+    let shape = barrel.fuse(ring);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body_3mm - Creates a solid representation of a 3mm LED bezel
+// -----------------------------------------------------------------------------
+fn body_3mm(tolerance = 0.2) {
+    let barrel_r = bezel_3mm_hole_radius + tolerance;
+    let ring_r = bezel_3mm_ring_radius + tolerance;
+    let barrel_len = bezel_3mm_barrel_length;
+    let ring_t = bezel_3mm_ring_thickness;
+
+    let barrel = cylinder(barrel_r, barrel_len)
+        .rotate([90, 0, 0]);
+
+    let ring = cylinder(ring_r, ring_t)
+        .rotate([90, 0, 0])
+        .translate([0, ring_t, 0]);
+
+    let shape = barrel.fuse(ring);
+
+    return shape;
+}
+
+export cutout;
+export body;

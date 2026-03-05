@@ -1,0 +1,95 @@
+// =============================================================================
+// DC Barrel Jack Connector Cutout and Body
+// =============================================================================
+//
+// Standard DC barrel jack (power inlet) connector. The panel cutout is
+// a round hole sized to the outer diameter of the barrel. Common sizes
+// are 5.5mm OD / 2.1mm ID and 5.5mm OD / 2.5mm ID.
+//
+// The mounting hole diameter is typically 8.0mm for standard panel-mount
+// barrel jacks with an 11mm nut.
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout shape (round hole)
+//   body(tolerance)    - Solid body representing the connector housing
+//
+// Reference: Standard 2.1mm/2.5mm DC barrel jack, panel mount
+// =============================================================================
+
+// Mounting hole diameter (mm)
+const mount_hole_diameter = 8.0;
+const mount_hole_radius = 4.0;
+
+// Barrel outer/inner dimensions (mm)
+const barrel_od = 5.5;
+const barrel_id_standard = 2.1;
+const barrel_id_large = 2.5;
+
+// Connector body dimensions (mm)
+const body_diameter = 9.0;
+const body_depth = 14.0;
+
+// Nut dimensions for panel mount
+const nut_diameter = 11.0;
+const nut_thickness = 2.5;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a round panel cutout for a DC barrel jack
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let r = mount_hole_radius + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the barrel jack housing
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let r = body_diameter / 2 + tolerance;
+    let d = body_depth + tolerance;
+
+    let housing = cylinder(r, d)
+        .rotate([90, 0, 0]);
+
+    return housing;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_with_flat - Creates a cutout with an anti-rotation flat
+// -----------------------------------------------------------------------------
+// Some barrel jacks have a small anti-rotation tab/flat. This creates
+// the round hole plus a small rectangular notch.
+//
+// Parameters:
+//   tolerance   - Extra clearance (default 0.2mm)
+//   depth       - Depth of the cutout (default 10.0mm)
+//   flat_width  - Width of the anti-rotation flat (default 2.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_with_flat(tolerance = 0.2, depth = 10.0, flat_width = 2.0) {
+    let main = cutout(tolerance, depth);
+
+    // Anti-rotation flat/tab slot
+    let flat = box(flat_width, depth, 2.0)
+        .translate([-flat_width / 2, 0, mount_hole_radius]);
+
+    let shape = main.fuse(flat);
+
+    return shape;
+}
+
+export cutout;
+export body;

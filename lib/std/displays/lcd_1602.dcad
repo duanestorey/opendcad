@@ -1,0 +1,123 @@
+// =============================================================================
+// 16x2 Character LCD Display Module
+// =============================================================================
+//
+// Standard HD44780-compatible 16x2 character LCD module. These displays
+// are extremely common in electronics projects and come in a standard
+// form factor.
+//
+// Viewing area:    ~64.5mm x 16.0mm
+// PCB dimensions:  ~80.0mm x 36.0mm
+// Mounting holes:  4x M2.5, positioned at 75.0mm x 31.0mm rectangle
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout for the viewing window
+//   body(tolerance)    - Solid body representing the full LCD module
+//
+// Reference: Standard HD44780 16x2 LCD module datasheet
+// =============================================================================
+
+// Viewing/active area dimensions (mm)
+const view_width = 64.5;
+const view_height = 16.0;
+const view_corner_radius = 0.5;
+
+// Bezel (visible window) dimensions (mm)
+const bezel_width = 71.0;
+const bezel_height = 24.0;
+const bezel_corner_radius = 1.0;
+
+// PCB dimensions (mm)
+const pcb_width = 80.0;
+const pcb_height = 36.0;
+const pcb_thickness = 1.6;
+
+// Overall module thickness (including components on back)
+const module_thickness = 12.0;
+
+// Display glass dimensions
+const glass_width = 71.4;
+const glass_height = 24.6;
+const glass_thickness = 8.0;
+
+// Mounting hole specifications
+const mount_hole_spacing_x = 75.0;  // horizontal center-to-center
+const mount_hole_spacing_y = 31.0;  // vertical center-to-center
+const mount_hole_diameter = 2.5;    // M2.5 clearance
+const mount_hole_radius = 1.25;
+
+// Offset of viewing area center from PCB center
+const view_offset_x = 0.0;
+const view_offset_y = 2.0;  // slightly above PCB center
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for the LCD viewing window
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = bezel_width + tolerance * 2;
+    let h = bezel_height + tolerance * 2;
+    let r = bezel_corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the full LCD module
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = pcb_width + tolerance * 2;
+    let h = pcb_height + tolerance * 2;
+
+    // PCB layer
+    let pcb = box(w, pcb_thickness, h)
+        .translate([-w / 2, 0, -h / 2]);
+
+    // Display glass/module sitting on top of PCB
+    let gw = glass_width + tolerance * 2;
+    let gh = glass_height + tolerance * 2;
+    let glass = box(gw, glass_thickness, gh)
+        .translate([-gw / 2, -glass_thickness, -gh / 2]);
+
+    let shape = pcb.fuse(glass);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// mounting_holes - Creates the 4 mounting hole cylinders
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to hole radius (default 0.2mm)
+//   depth      - Depth/height of the hole cylinders (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn mounting_holes(tolerance = 0.2, depth = 10.0) {
+    let r = mount_hole_radius + tolerance;
+    let dx = mount_hole_spacing_x / 2;
+    let dy = mount_hole_spacing_y / 2;
+
+    let h1 = cylinder(r, depth).translate([-dx, 0, -dy]);
+    let h2 = cylinder(r, depth).translate([ dx, 0, -dy]);
+    let h3 = cylinder(r, depth).translate([-dx, 0,  dy]);
+    let h4 = cylinder(r, depth).translate([ dx, 0,  dy]);
+
+    let shape = h1.fuse(h2).fuse(h3).fuse(h4);
+
+    return shape;
+}
+
+export cutout;
+export body;

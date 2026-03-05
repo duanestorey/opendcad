@@ -1,0 +1,75 @@
+// =============================================================================
+// USB Micro-B Connector Cutout and Body
+// =============================================================================
+//
+// Standard USB Micro-B receptacle dimensions. The connector opening is
+// approximately 7.8mm wide x 2.7mm tall with a trapezoidal profile
+// (wider at top, narrower at bottom).
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout shape for USB Micro-B connector
+//   body(tolerance)    - Solid body representing the connector housing
+//
+// Reference: USB 2.0 Specification, Micro-B receptacle
+// =============================================================================
+
+// Connector opening dimensions (mm)
+// Micro-B has a slightly trapezoidal shape; we approximate as rectangular
+const opening_width = 7.8;
+const opening_height = 2.7;
+const corner_radius = 0.4;
+
+// Connector housing/body dimensions (mm)
+const body_width = 7.8;
+const body_height = 2.7;
+const body_depth = 5.6;
+
+// Overmold/housing outer dimensions
+const housing_width = 9.0;
+const housing_height = 4.0;
+const housing_depth = 6.0;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for a USB Micro-B connector
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = opening_width + tolerance * 2;
+    let h = opening_height + tolerance * 2;
+    let r = corner_radius;
+
+    // Micro-B approximated as rounded rectangle
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the USB Micro-B connector housing
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = housing_width + tolerance * 2;
+    let h = housing_height + tolerance * 2;
+    let d = housing_depth + tolerance;
+    let r = corner_radius;
+
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return housing;
+}
+
+export cutout;
+export body;

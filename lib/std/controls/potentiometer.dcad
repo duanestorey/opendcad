@@ -1,0 +1,126 @@
+// =============================================================================
+// Potentiometer Cutout and Body
+// =============================================================================
+//
+// Standard panel-mount potentiometer (rotary). The shaft hole is
+// typically 7mm in diameter (for 6mm shaft + clearance). Common types
+// include 16mm and 24mm body diameter potentiometers.
+//
+// Shaft hole:     7.0mm diameter (for standard 6mm D-shaft)
+// Body diameter:  16mm (standard) or 24mm (large)
+//
+// Exports:
+//   cutout(tolerance)  - Round shaft hole cutout
+//   body(tolerance)    - Solid body representing the potentiometer
+//
+// Reference: Standard Alpha/Bourns 16mm panel-mount potentiometer
+// =============================================================================
+
+// Shaft and mounting hole dimensions (mm)
+const shaft_diameter = 6.0;
+const shaft_hole_diameter = 7.0;
+const shaft_hole_radius = 3.5;
+const shaft_length = 15.0;
+
+// Body dimensions (mm)
+const body_diameter_16mm = 16.0;
+const body_diameter_24mm = 24.0;
+const body_depth = 10.0;
+
+// Default body size
+const body_diameter = 16.0;
+
+// Bushing (threaded barrel) dimensions
+const bushing_diameter = 7.0;
+const bushing_length = 9.5;
+
+// Nut dimensions
+const nut_diameter = 10.0;
+const nut_thickness = 2.0;
+
+// Anti-rotation tab
+const tab_width = 2.5;
+const tab_distance = 5.0;  // distance from shaft center to tab hole center
+const tab_hole_diameter = 3.0;
+const tab_hole_radius = 1.5;
+
+// Solder terminal dimensions
+const terminal_spacing = 5.0;
+const terminal_length = 7.0;
+
+// D-shaft flat dimensions
+const d_flat_depth = 0.5;  // depth of the flat on D-shaft
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a round shaft hole cutout for a potentiometer
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to radius (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let r = shaft_hole_radius + tolerance;
+
+    let shape = cylinder(r, depth)
+        .rotate([90, 0, 0]);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the potentiometer
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let r = body_diameter / 2 + tolerance;
+    let d = body_depth + tolerance;
+
+    // Main body (behind panel)
+    let main = cylinder(r, d)
+        .rotate([90, 0, 0]);
+
+    // Bushing (through panel)
+    let bushing_r = bushing_diameter / 2 + tolerance;
+    let bushing = cylinder(bushing_r, bushing_length)
+        .rotate([90, 0, 0])
+        .translate([0, -bushing_length, 0]);
+
+    // Shaft (in front of panel)
+    let shaft_r = shaft_diameter / 2;
+    let shaft = cylinder(shaft_r, shaft_length)
+        .rotate([90, 0, 0])
+        .translate([0, -bushing_length - shaft_length, 0]);
+
+    let shape = main.fuse(bushing).fuse(shaft);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_with_tab - Creates shaft hole + anti-rotation tab hole
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance (default 0.2mm)
+//   depth      - Depth of the cutout (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_with_tab(tolerance = 0.2, depth = 10.0) {
+    let main = cutout(tolerance, depth);
+
+    // Anti-rotation tab hole
+    let tr = tab_hole_radius + tolerance;
+    let tab = cylinder(tr, depth)
+        .rotate([90, 0, 0])
+        .translate([0, 0, -tab_distance]);
+
+    let shape = main.fuse(tab);
+
+    return shape;
+}
+
+export cutout;
+export body;

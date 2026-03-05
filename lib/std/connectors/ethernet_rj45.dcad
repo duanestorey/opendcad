@@ -1,0 +1,101 @@
+// =============================================================================
+// RJ45 Ethernet Connector Cutout and Body
+// =============================================================================
+//
+// Standard RJ45 ethernet jack dimensions. The connector opening is
+// approximately 16.0mm wide x 13.1mm tall. RJ45 jacks are relatively
+// large connectors and often include integrated LEDs.
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout shape for RJ45 connector
+//   body(tolerance)    - Solid body representing the connector housing
+//
+// Reference: Standard PCB-mount RJ45 modular jack
+// =============================================================================
+
+// Connector opening dimensions (mm)
+const opening_width = 16.0;
+const opening_height = 13.1;
+const corner_radius = 0.5;
+
+// Connector housing/body dimensions (mm)
+const body_width = 16.0;
+const body_height = 13.1;
+const body_depth = 21.5;
+
+// PCB-mount tab slot dimensions (on either side)
+const tab_width = 1.5;
+const tab_height = 3.0;
+const tab_offset_y = 5.0;  // offset from top of connector
+
+// LED window dimensions (common for integrated LED jacks)
+const led_width = 3.0;
+const led_height = 2.5;
+const led_spacing = 10.0;  // distance between two LED windows
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for an RJ45 ethernet connector
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = opening_width + tolerance * 2;
+    let h = opening_height + tolerance * 2;
+    let r = corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the RJ45 connector housing
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = body_width + tolerance * 2;
+    let h = body_height + tolerance * 2;
+    let d = body_depth + tolerance;
+    let r = corner_radius;
+
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return housing;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_with_leds - Creates a panel cutout with LED windows
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance (default 0.2mm)
+//   depth      - Depth of the cutout (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_with_leds(tolerance = 0.2, depth = 10.0) {
+    let main = cutout(tolerance, depth);
+
+    // Left LED window
+    let led_l = box(led_width, depth, led_height)
+        .translate([-led_spacing / 2 - led_width / 2, 0, opening_height / 2 + led_height / 2]);
+
+    // Right LED window
+    let led_r = box(led_width, depth, led_height)
+        .translate([led_spacing / 2 - led_width / 2, 0, opening_height / 2 + led_height / 2]);
+
+    let shape = main.fuse(led_l).fuse(led_r);
+
+    return shape;
+}
+
+export cutout;
+export body;

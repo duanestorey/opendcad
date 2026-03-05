@@ -1,0 +1,115 @@
+// =============================================================================
+// Custom / Parametric LCD Display Cutout
+// =============================================================================
+//
+// A fully parametric display cutout generator. Use this when your display
+// does not match any of the pre-defined modules, or when you need a
+// custom-sized viewing window.
+//
+// Exports:
+//   cutout(width, height, corner_r, tolerance, depth)
+//   body(width, height, thickness, corner_r, tolerance)
+//   cutout_with_mounting(...)
+//
+// Usage example:
+//   let my_display = custom_lcd.cutout(50, 30, 2.0);
+// =============================================================================
+
+// Default values (mm)
+const default_corner_radius = 1.0;
+const default_pcb_margin = 5.0;
+const default_pcb_thickness = 1.6;
+const default_glass_thickness = 2.5;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a parametric panel cutout for any display
+// -----------------------------------------------------------------------------
+// Parameters:
+//   width      - Width of the viewing window (mm)
+//   height     - Height of the viewing window (mm)
+//   corner_r   - Corner radius for the cutout (default 1.0mm)
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(width, height, corner_r = 1.0, tolerance = 0.2, depth = 10.0) {
+    let w = width + tolerance * 2;
+    let h = height + tolerance * 2;
+    let r = corner_r;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a parametric body for any display module
+// -----------------------------------------------------------------------------
+// Parameters:
+//   width       - Width of the display glass (mm)
+//   height      - Height of the display glass (mm)
+//   thickness   - Total module thickness (default 5.0mm)
+//   corner_r    - Corner radius (default 1.0mm)
+//   tolerance   - Clearance around the body (default 0.2mm)
+//   pcb_margin  - Extra PCB border around the display (default 5.0mm)
+// -----------------------------------------------------------------------------
+fn body(width, height, thickness = 5.0, corner_r = 1.0, tolerance = 0.2, pcb_margin = 5.0) {
+    // PCB dimensions (display + margin)
+    let pcb_w = width + pcb_margin * 2 + tolerance * 2;
+    let pcb_h = height + pcb_margin * 2 + tolerance * 2;
+
+    // PCB layer
+    let pcb = box(pcb_w, default_pcb_thickness, pcb_h)
+        .translate([-pcb_w / 2, 0, -pcb_h / 2]);
+
+    // Display glass
+    let gw = width + tolerance * 2;
+    let gh = height + tolerance * 2;
+    let gt = thickness - default_pcb_thickness;
+    let glass = box(gw, gt, gh)
+        .translate([-gw / 2, -gt, -gh / 2])
+        .fillet(corner_r);
+
+    let shape = pcb.fuse(glass);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_with_mounting - Creates cutout with 4 mounting holes
+// -----------------------------------------------------------------------------
+// Parameters:
+//   width       - Width of the viewing window (mm)
+//   height      - Height of the viewing window (mm)
+//   mount_dx    - Horizontal distance between mounting holes (mm)
+//   mount_dy    - Vertical distance between mounting holes (mm)
+//   hole_r      - Mounting hole radius (default 1.5mm for M2.5)
+//   corner_r    - Corner radius for cutout (default 1.0mm)
+//   tolerance   - Extra clearance (default 0.2mm)
+//   depth       - Depth of the cutout (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_with_mounting(width, height, mount_dx, mount_dy, hole_r = 1.5, corner_r = 1.0, tolerance = 0.2, depth = 10.0) {
+    // Main viewing cutout
+    let main = cutout(width, height, corner_r, tolerance, depth);
+
+    // Mounting holes
+    let hr = hole_r + tolerance;
+    let mx = mount_dx / 2;
+    let my = mount_dy / 2;
+
+    let h1 = cylinder(hr, depth).translate([-mx, 0, -my]);
+    let h2 = cylinder(hr, depth).translate([ mx, 0, -my]);
+    let h3 = cylinder(hr, depth).translate([-mx, 0,  my]);
+    let h4 = cylinder(hr, depth).translate([ mx, 0,  my]);
+
+    let shape = main.fuse(h1).fuse(h2).fuse(h3).fuse(h4);
+
+    return shape;
+}
+
+export cutout;
+export body;

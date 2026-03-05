@@ -1,0 +1,117 @@
+// =============================================================================
+// DB9 (DE-9) Serial Connector Cutout and Body
+// =============================================================================
+//
+// Standard DB9 (DE-9) D-sub connector dimensions. The connector has a
+// trapezoidal opening with two mounting/screw holes on either side.
+//
+// Cutout dimensions (approximate):
+//   Opening width (top):    18.4mm
+//   Opening width (bottom): 12.5mm
+//   Opening height:         10.2mm
+//   Mounting holes:         M3, spaced 25.0mm apart (center-to-center)
+//
+// Exports:
+//   cutout(tolerance)  - Panel cutout shape with mounting holes
+//   body(tolerance)    - Solid body representing the connector housing
+//
+// Reference: D-subminiature connector, DE-9 (commonly called DB9)
+// =============================================================================
+
+// Connector opening dimensions (mm)
+// DB9 has a trapezoidal shape; we approximate with a rectangle using the
+// larger (top) width dimension for a conservative cutout
+const opening_width_top = 18.4;
+const opening_width_bottom = 12.5;
+const opening_height = 10.2;
+const corner_radius = 0.5;
+
+// For simplified rectangular cutout, use max width
+const opening_width = 18.4;
+
+// Mounting hole specifications
+const mount_hole_spacing = 25.0;    // center-to-center distance
+const mount_hole_diameter = 3.2;    // M3 clearance hole
+const mount_hole_radius = 1.6;
+
+// Connector housing/body dimensions (mm)
+const body_width = 30.8;
+const body_height = 12.5;
+const body_depth = 12.5;
+
+// Panel cutout depth
+const cutout_depth = 10.0;
+
+// -----------------------------------------------------------------------------
+// cutout - Creates a panel cutout for a DB9 connector with mounting holes
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout(tolerance = 0.2, depth = 10.0) {
+    let w = opening_width + tolerance * 2;
+    let h = opening_height + tolerance * 2;
+    let r = corner_radius;
+
+    // Main trapezoidal opening (approximated as rectangle)
+    let main_cutout = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    // Left mounting hole
+    let hole_r = mount_hole_radius + tolerance;
+    let hole_l = cylinder(hole_r, depth)
+        .rotate([90, 0, 0])
+        .translate([-mount_hole_spacing / 2, 0, 0]);
+
+    // Right mounting hole
+    let hole_r_shape = cylinder(hole_r, depth)
+        .rotate([90, 0, 0])
+        .translate([mount_hole_spacing / 2, 0, 0]);
+
+    let shape = main_cutout.fuse(hole_l).fuse(hole_r_shape);
+
+    return shape;
+}
+
+// -----------------------------------------------------------------------------
+// body - Creates a solid representation of the DB9 connector housing
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Clearance around the body (default 0.2mm)
+// -----------------------------------------------------------------------------
+fn body(tolerance = 0.2) {
+    let w = body_width + tolerance * 2;
+    let h = body_height + tolerance * 2;
+    let d = body_depth + tolerance;
+    let r = corner_radius;
+
+    let housing = box(w, d, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return housing;
+}
+
+// -----------------------------------------------------------------------------
+// cutout_no_screws - Creates just the D-shaped opening without screw holes
+// -----------------------------------------------------------------------------
+// Parameters:
+//   tolerance  - Extra clearance added to each side (default 0.2mm)
+//   depth      - Depth of the cutout extrusion (default 10.0mm)
+// -----------------------------------------------------------------------------
+fn cutout_no_screws(tolerance = 0.2, depth = 10.0) {
+    let w = opening_width + tolerance * 2;
+    let h = opening_height + tolerance * 2;
+    let r = corner_radius;
+
+    let shape = box(w, depth, h)
+        .translate([-w / 2, 0, -h / 2])
+        .fillet(r);
+
+    return shape;
+}
+
+export cutout;
+export body;
