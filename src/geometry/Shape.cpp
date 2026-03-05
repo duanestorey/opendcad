@@ -1,4 +1,5 @@
 #include "Shape.h"
+#include "Error.h"
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -12,7 +13,8 @@
 #include <TopoDS_Edge.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
-#include "output.h"
+#include <gp_Ax1.hxx>
+#include <gp_Ax2.hxx>
 
 using namespace opendcad;
 
@@ -61,10 +63,11 @@ Shape::Shape( const TopoDS_Shape &shape ) : mShape( shape ) {
 
 Shape::Shape() {}
 
-ShapePtr 
+ShapePtr
 Shape::flip() const {
-
-
+    gp_Trsf mirror;
+    mirror.SetMirror(gp::XOY());
+    return ShapePtr(new Shape(BRepBuilderAPI_Transform(mShape, mirror, true).Shape()));
 }
 
 ShapePtr 
@@ -78,7 +81,7 @@ Shape::fillet( double amount ) const {
     mk.Build();
 
     if ( !mk.IsDone() ) {
-        std::cout << termcolor::red << "Unable to fillet edges" << "\n";
+        throw GeometryError("fillet operation failed");
     }
 
     return ShapePtr( new Shape( mk.Shape() ) );
@@ -115,7 +118,7 @@ Shape::fuse( const ShapePtr &part  ) {
     fuse.SetNonDestructive(true);             // ✅ keeps original shapes intact
     fuse.Build();                             // explicitly build result
     if (!fuse.IsDone()) {
-        std::cerr << termcolor::red << "Fuse failed" << "\n";
+        throw GeometryError("fuse operation failed");
     } 
 
     return ShapePtr( new Shape( fuse.Shape() ) );
@@ -129,7 +132,7 @@ Shape::fuse( const ShapePtr &part  ) {
     cut.Build();   
 
     if (!cut.IsDone()) {
-        std::cerr << termcolor::red << "Cut failed" << "\n";
+        throw GeometryError("cut operation failed");
     } 
 
     return ShapePtr( new Shape( cut.Shape() ) );

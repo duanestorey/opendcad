@@ -35,27 +35,8 @@ public:
     ShapePtr z( double z ) { return translate( 0, 0, z ); }
 
     bool isValid() const { return !mShape.IsNull(); }
-private: 
+private:
     TopoDS_Shape mShape;
 };
 
-class LetValue {
-public:
-	LetValue() : mType( NOTSET ), mDouble( 0 ), mBool( false ) {}
-
-	enum {
-        NOTSET,
-		SHAPE,
-		DOUBLE,
-		STRING,
-		BOOLEAN
-	} mType;
-
-	ShapePtr mShape;
-	double mDouble;
-	std::string mString;
-	bool mBool;
-} ;
-
-
-}
+} // namespace opendcad
