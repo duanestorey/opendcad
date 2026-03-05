@@ -1,4 +1,6 @@
 #include "Value.h"
+#include "FunctionDef.h"
+#include "Color.h"
 #include "Error.h"
 #include "Shape.h"
 #include <cmath>
@@ -82,6 +84,34 @@ ValuePtr Value::makeEdgeSelector(EdgeSelectorPtr v) {
     return val;
 }
 
+ValuePtr Value::makeList(const std::vector<ValuePtr>& elements) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::LIST;
+    val->list_ = elements;
+    return val;
+}
+
+ValuePtr Value::makeFunction(FunctionDefPtr fn) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::FUNCTION;
+    val->functionDef_ = std::move(fn);
+    return val;
+}
+
+ValuePtr Value::makeColor(ColorPtr c) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::COLOR;
+    val->color_ = std::move(c);
+    return val;
+}
+
+ValuePtr Value::makeMaterial(MaterialPtr m) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::MATERIAL;
+    val->material_ = std::move(m);
+    return val;
+}
+
 std::string Value::typeName() const {
     switch (type_) {
         case ValueType::NUMBER:        return "number";
@@ -95,6 +125,10 @@ std::string Value::typeName() const {
         case ValueType::WORKPLANE:     return "workplane";
         case ValueType::SKETCH:        return "sketch";
         case ValueType::EDGE_SELECTOR: return "edge_selector";
+        case ValueType::LIST:          return "list";
+        case ValueType::FUNCTION:      return "function";
+        case ValueType::COLOR:         return "color";
+        case ValueType::MATERIAL:      return "material";
     }
     return "unknown";
 }
@@ -159,6 +193,63 @@ EdgeSelectorPtr Value::asEdgeSelector() const {
     return edgeSelector_;
 }
 
+const std::vector<ValuePtr>& Value::asList() const {
+    if (type_ != ValueType::LIST)
+        throw EvalError("expected list, got " + typeName());
+    return list_;
+}
+
+void Value::listPush(ValuePtr element) {
+    if (type_ != ValueType::LIST)
+        throw EvalError("push() requires a list, got " + typeName());
+    list_.push_back(std::move(element));
+}
+
+ValuePtr Value::listGet(int index) const {
+    if (type_ != ValueType::LIST)
+        throw EvalError("indexing requires a list, got " + typeName());
+    if (index < 0 || index >= static_cast<int>(list_.size()))
+        throw EvalError("list index " + std::to_string(index) + " out of bounds (size " + std::to_string(list_.size()) + ")");
+    return list_[index];
+}
+
+int Value::listLength() const {
+    if (type_ != ValueType::LIST)
+        throw EvalError("length requires a list, got " + typeName());
+    return static_cast<int>(list_.size());
+}
+
+std::vector<double> Value::toVector() const {
+    if (type_ == ValueType::VECTOR) return vector_;
+    if (type_ == ValueType::LIST) {
+        std::vector<double> result;
+        result.reserve(list_.size());
+        for (const auto& elem : list_) {
+            result.push_back(elem->asNumber());
+        }
+        return result;
+    }
+    throw EvalError("expected vector or list of numbers, got " + typeName());
+}
+
+FunctionDefPtr Value::asFunction() const {
+    if (type_ != ValueType::FUNCTION)
+        throw EvalError("expected function, got " + typeName());
+    return functionDef_;
+}
+
+ColorPtr Value::asColor() const {
+    if (type_ != ValueType::COLOR)
+        throw EvalError("expected color, got " + typeName());
+    return color_;
+}
+
+MaterialPtr Value::asMaterial() const {
+    if (type_ != ValueType::MATERIAL)
+        throw EvalError("expected material, got " + typeName());
+    return material_;
+}
+
 bool Value::isTruthy() const {
     switch (type_) {
         case ValueType::NIL:           return false;
@@ -172,6 +263,10 @@ bool Value::isTruthy() const {
         case ValueType::WORKPLANE:     return workplane_ != nullptr;
         case ValueType::SKETCH:        return sketch_ != nullptr;
         case ValueType::EDGE_SELECTOR: return edgeSelector_ != nullptr;
+        case ValueType::LIST:          return !list_.empty();
+        case ValueType::FUNCTION:      return true;
+        case ValueType::COLOR:         return color_ != nullptr;
+        case ValueType::MATERIAL:      return material_ != nullptr;
     }
     return false;
 }
@@ -262,6 +357,49 @@ ValuePtr Value::negate() const {
     throw EvalError("cannot negate " + typeName());
 }
 
+ValuePtr Value::equal(const ValuePtr& other) const {
+    if (type_ != other->type_) return makeBool(false);
+    switch (type_) {
+        case ValueType::NUMBER: return makeBool(number_ == other->number_);
+        case ValueType::STRING: return makeBool(string_ == other->string_);
+        case ValueType::BOOL:   return makeBool(bool_ == other->bool_);
+        case ValueType::NIL:    return makeBool(true);
+        default: return makeBool(false);
+    }
+}
+
+ValuePtr Value::notEqual(const ValuePtr& other) const {
+    return makeBool(!equal(other)->asBool());
+}
+
+ValuePtr Value::lessThan(const ValuePtr& other) const {
+    if (type_ == ValueType::NUMBER && other->type_ == ValueType::NUMBER)
+        return makeBool(number_ < other->number_);
+    throw EvalError("cannot compare " + typeName() + " and " + other->typeName() + " with <");
+}
+
+ValuePtr Value::greaterThan(const ValuePtr& other) const {
+    if (type_ == ValueType::NUMBER && other->type_ == ValueType::NUMBER)
+        return makeBool(number_ > other->number_);
+    throw EvalError("cannot compare " + typeName() + " and " + other->typeName() + " with >");
+}
+
+ValuePtr Value::lessEqual(const ValuePtr& other) const {
+    if (type_ == ValueType::NUMBER && other->type_ == ValueType::NUMBER)
+        return makeBool(number_ <= other->number_);
+    throw EvalError("cannot compare " + typeName() + " and " + other->typeName() + " with <=");
+}
+
+ValuePtr Value::greaterEqual(const ValuePtr& other) const {
+    if (type_ == ValueType::NUMBER && other->type_ == ValueType::NUMBER)
+        return makeBool(number_ >= other->number_);
+    throw EvalError("cannot compare " + typeName() + " and " + other->typeName() + " with >=");
+}
+
+ValuePtr Value::logicalNot() const {
+    return makeBool(!isTruthy());
+}
+
 std::string Value::toString() const {
     switch (type_) {
         case ValueType::NUMBER: {
@@ -288,6 +426,22 @@ std::string Value::toString() const {
         case ValueType::WORKPLANE:     return "<workplane>";
         case ValueType::SKETCH:        return "<sketch>";
         case ValueType::EDGE_SELECTOR: return "<edge_selector>";
+        case ValueType::LIST: {
+            std::ostringstream oss;
+            oss << "[";
+            for (size_t i = 0; i < list_.size(); i++) {
+                if (i > 0) oss << ", ";
+                oss << list_[i]->toString();
+            }
+            oss << "]";
+            return oss.str();
+        }
+        case ValueType::FUNCTION:
+            return "<fn " + (functionDef_ ? functionDef_->name : "?") + ">";
+        case ValueType::COLOR:
+            return color_ ? color_->toString() : "<color>";
+        case ValueType::MATERIAL:
+            return material_ ? material_->toString() : "<material>";
     }
     return "unknown";
 }

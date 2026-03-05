@@ -1,0 +1,31 @@
+// Test lists, vec(), builtins
+
+// vec() factory for vectors
+let pos = vec(10, 20, 30);
+let base = box(40, 30, 10).translate(pos);
+
+// Lists
+let parts = [];
+let sizes = [5, 10, 15, 20];
+
+// For-each over a list (uses range builtin)
+for (s in range(4)) {
+    let post = cylinder(3, sizes[s]).translate(vec(s * 12 - 18, 0, 5));
+    parts.push(post);
+    base = base.fuse(post);
+}
+
+// List length
+let count = parts.length();
+print("Parts count:", count);
+
+// While with list
+let r = 5;
+let rings = box(1, 1, 1);
+while (r < 25) {
+    rings = rings.fuse(torus(r, 1));
+    r += 5;
+}
+
+export base as list_test;
+export rings as ring_test;

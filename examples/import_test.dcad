@@ -1,0 +1,20 @@
+// Test imports
+import "lib/fasteners.dcad";
+
+// Use imported functions
+let bolt = m3_bolt(15);
+let bolt2 = m4_bolt(20);
+
+// Use imported constants
+print("M3 diameter:", M3_DIA);
+
+// Build a plate with standoffs
+let plate = box(60, 40, 3);
+for (let i = 0; i < 4; i++) {
+    let x = (i % 2) * 40 - 20;
+    let y = (i / 2) * 20 - 10;
+    let s = standoff(6, 10).translate([x, y, 3]);
+    plate = plate.fuse(s);
+}
+
+export plate as imported_plate;

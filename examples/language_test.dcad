@@ -1,0 +1,41 @@
+// Test new language features: const, assignment, operators, control flow
+
+const wall = 2;
+let model = box(80, 60, wall);
+
+// Test reassignment
+let height = 10;
+height = 20;
+
+// Test compound assignment
+let x = 5;
+x += 10;
+
+// Test comparison and logical
+let tall = height > 15;
+
+// Test if/else
+if (height > 15) {
+    model = box(80, 60, height);
+} else {
+    model = box(40, 30, height);
+}
+
+// Test for loop
+let base = box(80, 60, 10);
+for (let i = 0; i < 4; i++) {
+    let post = cylinder(3, 20).translate([i * 20 - 30, 0, 10]);
+    base = base.fuse(post);
+}
+
+// Test while loop
+let r = 5;
+let ring_base = box(1, 1, 1);
+while (r < 20) {
+    let ring = torus(r, 1);
+    ring_base = ring_base.fuse(ring);
+    r += 5;
+}
+
+export base as posts;
+export ring_base as rings;

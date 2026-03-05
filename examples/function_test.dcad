@@ -1,0 +1,50 @@
+// Test user-defined functions
+
+// Simple function
+fn bracket(width, height, thickness = 5) {
+    let base = box(width, thickness, height);
+    return base.fillet(1);
+}
+
+let b1 = bracket(20, 30);
+let b2 = bracket(20, 30, 8);
+
+// Function that returns a shape
+fn mounting_plate(width, depth, holes = 4) {
+    let plate = box(width, depth, 2);
+    let spacing = width / (holes + 1);
+
+    for (let i = 0; i < holes; i++) {
+        let x = spacing * (i + 1) - width / 2;
+        plate = plate.face(">Z").throughHole(3, x, 0);
+    }
+
+    return plate.edges().vertical().fillet(1);
+}
+
+let base = mounting_plate(80, 60);
+
+// Build posts using a loop
+let posts = [];
+for (let i = 0; i < 4; i++) {
+    let p = cylinder(4, 25).translate([i * 20 - 30, 0, 5]);
+    posts.push(p);
+    base = base.fuse(p);
+}
+
+// Named argument test
+let plate2 = mounting_plate(100, 80, holes=6);
+
+// Recursion test
+fn factorial(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+let fact5 = factorial(5);
+print("5! =", fact5);
+
+export base as function_test;
+export plate2 as plate_with_6_holes;

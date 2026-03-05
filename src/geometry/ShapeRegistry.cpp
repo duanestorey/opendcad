@@ -4,6 +4,7 @@
 #include "Workplane.h"
 #include "Sketch.h"
 #include "EdgeSelector.h"
+#include "Color.h"
 #include "Error.h"
 
 namespace opendcad {
@@ -142,7 +143,7 @@ void ShapeRegistry::registerDefaults() {
             throw EvalError("polygon() requires at least 3 vector arguments (points), got " + std::to_string(args.size()));
         std::vector<std::pair<double,double>> pts;
         for (const auto& arg : args) {
-            const auto& v = arg->asVector();
+            const auto& v = arg->toVector();
             if (v.size() < 2)
                 throw EvalError("polygon() each point must have at least 2 coordinates");
             pts.emplace_back(v[0], v[1]);
@@ -207,7 +208,7 @@ void ShapeRegistry::registerDefaults() {
     registerMethod("translate", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
         double x = 0, y = 0, z = 0;
         if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
-            const auto& v = args[0]->asVector();
+            const auto& v = args[0]->toVector();
             x = v.size() > 0 ? v[0] : 0;
             y = v.size() > 1 ? v[1] : 0;
             z = v.size() > 2 ? v[2] : 0;
@@ -224,7 +225,7 @@ void ShapeRegistry::registerDefaults() {
     registerMethod("rotate", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
         double rx = 0, ry = 0, rz = 0;
         if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
-            const auto& v = args[0]->asVector();
+            const auto& v = args[0]->toVector();
             rx = v.size() > 0 ? v[0] : 0;
             ry = v.size() > 1 ? v[1] : 0;
             rz = v.size() > 2 ? v[2] : 0;
@@ -241,7 +242,7 @@ void ShapeRegistry::registerDefaults() {
     registerMethod("scale", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
         if (args.size() == 1) {
             if (args[0]->type() == ValueType::VECTOR) {
-                const auto& v = args[0]->asVector();
+                const auto& v = args[0]->toVector();
                 if (v.size() != 3)
                     throw EvalError("scale() vector must have 3 components");
                 return Value::makeShape(self->scale(v[0], v[1], v[2]));
@@ -257,7 +258,7 @@ void ShapeRegistry::registerDefaults() {
     registerMethod("mirror", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
         double nx = 0, ny = 0, nz = 0;
         if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
-            const auto& v = args[0]->asVector();
+            const auto& v = args[0]->toVector();
             nx = v.size() > 0 ? v[0] : 0;
             ny = v.size() > 1 ? v[1] : 0;
             nz = v.size() > 2 ? v[2] : 0;
@@ -350,7 +351,7 @@ void ShapeRegistry::registerDefaults() {
             double dx = 0, dy = 0, dz = 0;
             int count = 0;
             if (args.size() >= 2 && args[0]->type() == ValueType::VECTOR) {
-                const auto& v = args[0]->asVector();
+                const auto& v = args[0]->toVector();
                 dx = v.size() > 0 ? v[0] : 0;
                 dy = v.size() > 1 ? v[1] : 0;
                 dz = v.size() > 2 ? v[2] : 0;
@@ -365,7 +366,7 @@ void ShapeRegistry::registerDefaults() {
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() < 2 || args[0]->type() != ValueType::VECTOR)
                 throw EvalError("circularPattern() requires (axis_vector, count[, angle])");
-            const auto& v = args[0]->asVector();
+            const auto& v = args[0]->toVector();
             double ax = v.size() > 0 ? v[0] : 0;
             double ay = v.size() > 1 ? v[1] : 0;
             double az = v.size() > 2 ? v[2] : 0;
@@ -378,7 +379,7 @@ void ShapeRegistry::registerDefaults() {
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
             double nx = 0, ny = 0, nz = 0;
             if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
-                const auto& v = args[0]->asVector();
+                const auto& v = args[0]->toVector();
                 nx = v.size() > 0 ? v[0] : 0;
                 ny = v.size() > 1 ? v[1] : 0;
                 nz = v.size() > 2 ? v[2] : 0;
@@ -397,7 +398,7 @@ void ShapeRegistry::registerDefaults() {
             if (args.size() < 2)
                 throw EvalError("draft() requires (angle, direction_vector)");
             double angle = args[0]->asNumber();
-            const auto& v = args[1]->asVector();
+            const auto& v = args[1]->toVector();
             if (v.size() < 3)
                 throw EvalError("draft() direction vector must have 3 components");
             return Value::makeShape(self->asShape()->draft(angle, v[0], v[1], v[2]));
@@ -407,8 +408,8 @@ void ShapeRegistry::registerDefaults() {
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() < 2)
                 throw EvalError("splitAt() requires (point_vector, normal_vector)");
-            const auto& p = args[0]->asVector();
-            const auto& n = args[1]->asVector();
+            const auto& p = args[0]->toVector();
+            const auto& n = args[1]->toVector();
             if (p.size() < 3 || n.size() < 3)
                 throw EvalError("splitAt() vectors must have 3 components");
             return Value::makeShape(self->asShape()->splitAt(p[0], p[1], p[2], n[0], n[1], n[2]));
@@ -517,7 +518,7 @@ void ShapeRegistry::registerDefaults() {
 
     registerTypedMethod(ValueType::FACE_SELECTOR, "nearestTo",
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
-            const auto& v = args.at(0)->asVector();
+            const auto& v = args.at(0)->toVector();
             if (v.size() < 3)
                 throw EvalError("nearestTo() requires a 3-component vector");
             return Value::makeFaceRef(self->asFaceSelector()->nearestTo(gp_Pnt(v[0], v[1], v[2])));
@@ -525,7 +526,7 @@ void ShapeRegistry::registerDefaults() {
 
     registerTypedMethod(ValueType::FACE_SELECTOR, "farthestFrom",
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
-            const auto& v = args.at(0)->asVector();
+            const auto& v = args.at(0)->toVector();
             if (v.size() < 3)
                 throw EvalError("farthestFrom() requires a 3-component vector");
             return Value::makeFaceRef(self->asFaceSelector()->farthestFrom(gp_Pnt(v[0], v[1], v[2])));
@@ -583,7 +584,7 @@ void ShapeRegistry::registerDefaults() {
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
             std::vector<std::pair<double,double>> pts;
             for (const auto& arg : args) {
-                const auto& v = arg->asVector();
+                const auto& v = arg->toVector();
                 if (v.size() < 2)
                     throw EvalError("polygon point must have at least 2 coordinates");
                 pts.emplace_back(v[0], v[1]);
@@ -653,7 +654,7 @@ void ShapeRegistry::registerDefaults() {
             double ex = args[args.size() - 2]->asNumber();
             std::vector<std::pair<double,double>> throughPts;
             for (size_t i = 0; i < args.size() - 2; ++i) {
-                const auto& v = args[i]->asVector();
+                const auto& v = args[i]->toVector();
                 if (v.size() < 2)
                     throw EvalError("splineTo through-point must have at least 2 coordinates");
                 throughPts.emplace_back(v[0], v[1]);
@@ -736,7 +737,7 @@ void ShapeRegistry::registerDefaults() {
 
     registerTypedMethod(ValueType::EDGE_SELECTOR, "parallelTo",
         [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
-            const auto& v = args.at(0)->asVector();
+            const auto& v = args.at(0)->toVector();
             if (v.size() < 3)
                 throw EvalError("parallelTo() requires a 3-component vector");
             gp_Dir dir(v[0], v[1], v[2]);
@@ -797,6 +798,49 @@ void ShapeRegistry::registerDefaults() {
             if (args.empty() || args[0]->type() != ValueType::FACE_REF)
                 throw EvalError("ofFace() requires a face reference argument");
             return Value::makeEdgeSelector(self->asEdgeSelector()->ofFace(args[0]->asFaceRef()));
+        });
+
+    // ===== List methods =====
+
+    registerTypedMethod(ValueType::LIST, "push",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty())
+                throw EvalError("push() requires at least 1 argument");
+            for (const auto& arg : args)
+                self->listPush(arg);
+            return self;
+        });
+
+    registerTypedMethod(ValueType::LIST, "length",
+        [](ValuePtr self, const std::vector<ValuePtr>&) -> ValuePtr {
+            return Value::makeNumber(self->listLength());
+        });
+
+    registerTypedMethod(ValueType::LIST, "get",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 1)
+                throw EvalError("get() requires 1 argument (index)");
+            return self->listGet(static_cast<int>(args[0]->asNumber()));
+        });
+
+    // ===== Color/Material on shapes =====
+
+    registerTypedMethod(ValueType::SHAPE, "color",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::COLOR)
+                throw EvalError("color() requires a color argument");
+            auto shape = self->asShape();
+            shape->setColor(args[0]->asColor());
+            return Value::makeShape(shape);
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "material",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::MATERIAL)
+                throw EvalError("material() requires a material argument");
+            auto shape = self->asShape();
+            shape->setMaterial(args[0]->asMaterial());
+            return Value::makeShape(shape);
         });
 }
 

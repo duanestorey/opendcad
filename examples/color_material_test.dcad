@@ -1,0 +1,30 @@
+// Test color and material system
+
+// Use built-in color constants
+let body = box(80, 60, 20).color(GREY);
+
+// Use built-in material presets
+let bolt = cylinder(3, 15).material(CHROME);
+let grip = cylinder(10, 30).material(RUBBER);
+
+// Custom color
+const custom_blue = color(30, 80, 200);
+let panel = box(40, 40, 2).color(custom_blue);
+
+// Custom material
+const brushed = material("brushed_aluminum");
+let case_top = box(60, 40, 3).material(brushed);
+
+// Mix colors and geometry
+fn colored_post(height, col) {
+    return cylinder(3, height).color(col);
+}
+
+let base = box(100, 80, 5).material(ALUMINUM);
+for (let i = 0; i < 4; i++) {
+    let post = colored_post(20, RED).translate([i * 25 - 37, 0, 5]);
+    base = base.fuse(post);
+}
+
+print("Built colored assembly");
+export base as colored_assembly;
