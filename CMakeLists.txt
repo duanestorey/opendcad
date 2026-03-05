@@ -138,6 +138,11 @@ set(OPENDCAD_LIB_SOURCES
   src/core/Timer.cpp
   src/geometry/Shape.cpp
   src/geometry/ShapeRegistry.cpp
+  src/geometry/FaceRef.cpp
+  src/geometry/FaceSelector.cpp
+  src/geometry/Workplane.cpp
+  src/geometry/Sketch.cpp
+  src/geometry/EdgeSelector.cpp
   src/parser/Value.cpp
   src/parser/Environment.cpp
   src/parser/Evaluator.cpp
@@ -236,6 +241,7 @@ add_executable(opendcad_tests
   tests/test_shape.cpp
   tests/test_shape_registry.cpp
   tests/test_evaluator.cpp
+  tests/test_face_modeling.cpp
   ${OPENDCAD_LIB_SOURCES}
 )
 

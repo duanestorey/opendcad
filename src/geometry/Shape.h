@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <string>
 #include <TopoDS_Shape.hxx>
 
 namespace opendcad {
@@ -10,7 +11,16 @@ namespace opendcad {
 class Shape;
 typedef std::shared_ptr<Shape> ShapePtr;
 
-class Shape {
+class FaceRef;
+using FaceRefPtr = std::shared_ptr<FaceRef>;
+
+class FaceSelector;
+using FaceSelectorPtr = std::shared_ptr<FaceSelector>;
+
+class EdgeSelector;
+using EdgeSelectorPtr = std::shared_ptr<EdgeSelector>;
+
+class Shape : public std::enable_shared_from_this<Shape> {
 public:
     Shape( const TopoDS_Shape &shape );
     Shape();
@@ -64,6 +74,13 @@ public:
     ShapePtr x( double x ) { return translate( x, 0, 0 ); }
     ShapePtr y( double y ) { return translate( 0, y, 0 ); }
     ShapePtr z( double z ) { return translate( 0, 0, z ); }
+
+    // --- Face/Edge Selection ---
+    FaceSelectorPtr faces() const;
+    FaceRefPtr face(const std::string& selector) const;
+    FaceRefPtr topFace() const;
+    FaceRefPtr bottomFace() const;
+    EdgeSelectorPtr edges() const;
 
     bool isValid() const { return !mShape.IsNull(); }
 private:

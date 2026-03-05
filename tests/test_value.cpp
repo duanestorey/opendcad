@@ -164,3 +164,73 @@ TEST(ValueTest, TypeName) {
     EXPECT_EQ(Value::makeVector({})->typeName(), "vector");
     EXPECT_EQ(Value::makeNil()->typeName(), "nil");
 }
+
+// =============================================================================
+// Phase 2 — New Value Types
+// =============================================================================
+
+TEST(ValueTest, MakeFaceRefType) {
+    auto v = Value::makeFaceRef(nullptr);
+    EXPECT_EQ(v->type(), ValueType::FACE_REF);
+    EXPECT_EQ(v->typeName(), "face_ref");
+}
+
+TEST(ValueTest, MakeFaceSelectorType) {
+    auto v = Value::makeFaceSelector(nullptr);
+    EXPECT_EQ(v->type(), ValueType::FACE_SELECTOR);
+    EXPECT_EQ(v->typeName(), "face_selector");
+}
+
+TEST(ValueTest, MakeWorkplaneType) {
+    auto v = Value::makeWorkplane(nullptr);
+    EXPECT_EQ(v->type(), ValueType::WORKPLANE);
+    EXPECT_EQ(v->typeName(), "workplane");
+}
+
+TEST(ValueTest, MakeSketchType) {
+    auto v = Value::makeSketch(nullptr);
+    EXPECT_EQ(v->type(), ValueType::SKETCH);
+    EXPECT_EQ(v->typeName(), "sketch");
+}
+
+TEST(ValueTest, MakeEdgeSelectorType) {
+    auto v = Value::makeEdgeSelector(nullptr);
+    EXPECT_EQ(v->type(), ValueType::EDGE_SELECTOR);
+    EXPECT_EQ(v->typeName(), "edge_selector");
+}
+
+TEST(ValueTest, NewTypesToString) {
+    EXPECT_EQ(Value::makeFaceRef(nullptr)->toString(), "<face_ref>");
+    EXPECT_EQ(Value::makeFaceSelector(nullptr)->toString(), "<face_selector>");
+    EXPECT_EQ(Value::makeWorkplane(nullptr)->toString(), "<workplane>");
+    EXPECT_EQ(Value::makeSketch(nullptr)->toString(), "<sketch>");
+    EXPECT_EQ(Value::makeEdgeSelector(nullptr)->toString(), "<edge_selector>");
+}
+
+TEST(ValueTest, NewTypesIsTruthyNull) {
+    EXPECT_FALSE(Value::makeFaceRef(nullptr)->isTruthy());
+    EXPECT_FALSE(Value::makeFaceSelector(nullptr)->isTruthy());
+    EXPECT_FALSE(Value::makeWorkplane(nullptr)->isTruthy());
+    EXPECT_FALSE(Value::makeSketch(nullptr)->isTruthy());
+    EXPECT_FALSE(Value::makeEdgeSelector(nullptr)->isTruthy());
+}
+
+TEST(ValueTest, AsFaceRefThrowsOnWrongType) {
+    EXPECT_THROW(Value::makeNumber(5)->asFaceRef(), EvalError);
+}
+
+TEST(ValueTest, AsFaceSelectorThrowsOnWrongType) {
+    EXPECT_THROW(Value::makeNumber(5)->asFaceSelector(), EvalError);
+}
+
+TEST(ValueTest, AsWorkplaneThrowsOnWrongType) {
+    EXPECT_THROW(Value::makeNumber(5)->asWorkplane(), EvalError);
+}
+
+TEST(ValueTest, AsSketchThrowsOnWrongType) {
+    EXPECT_THROW(Value::makeNumber(5)->asSketch(), EvalError);
+}
+
+TEST(ValueTest, AsEdgeSelectorThrowsOnWrongType) {
+    EXPECT_THROW(Value::makeNumber(5)->asEdgeSelector(), EvalError);
+}

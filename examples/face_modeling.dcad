@@ -1,0 +1,6 @@
+let base = box(40, 30, 10);
+let withBoss = base.face(">Z").draw().circle(8).extrude(15);
+let withHole = withBoss.face(">Z").draw().circle(5).cutThrough();
+let withPocket = withHole.face("<Z").draw().rect(20, 15).cutBlind(3);
+let final = withPocket.edges().vertical().fillet(2);
+export final as face_test;

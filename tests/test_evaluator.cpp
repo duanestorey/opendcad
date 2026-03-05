@@ -210,3 +210,99 @@ TEST_F(EvaluatorTest, ShellMethod) {
     EXPECT_EQ(val->type(), ValueType::SHAPE);
     EXPECT_TRUE(val->asShape()->isValid());
 }
+
+// =============================================================================
+// Phase 2 — Face-Relative Modeling
+// =============================================================================
+
+TEST_F(EvaluatorTest, FaceRefFromSelector) {
+    auto evaluator = parseAndEvaluate("let f = box(40, 30, 10).face(\">Z\");");
+    auto val = evaluator.environment()->lookup("f");
+    EXPECT_EQ(val->type(), ValueType::FACE_REF);
+}
+
+TEST_F(EvaluatorTest, FaceSelectorCount) {
+    auto evaluator = parseAndEvaluate("let n = box(40, 30, 10).faces().count();");
+    auto val = evaluator.environment()->lookup("n");
+    EXPECT_EQ(val->type(), ValueType::NUMBER);
+    EXPECT_DOUBLE_EQ(val->asNumber(), 6.0);
+}
+
+TEST_F(EvaluatorTest, SketchCircleExtrude) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().circle(8).extrude(15);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, SketchCutThrough) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().circle(5).cutThrough();");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, SketchCutBlind) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().rect(20, 15).cutBlind(3);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, EdgeFilletPipeline) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(20, 20, 20).edges().vertical().fillet(2);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ChainedFaceOperations) {
+    auto evaluator = parseAndEvaluate(
+        "let base = box(40, 30, 10);\n"
+        "let withBoss = base.face(\">Z\").draw().circle(8).extrude(15);\n"
+        "let withHole = withBoss.face(\">Z\").draw().circle(5).cutThrough();\n"
+    );
+    auto val = evaluator.environment()->lookup("withHole");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, FaceRefIsPlanar) {
+    auto evaluator = parseAndEvaluate(
+        "let p = box(10, 10, 10).face(\">Z\").isPlanar();");
+    auto val = evaluator.environment()->lookup("p");
+    EXPECT_EQ(val->type(), ValueType::BOOL);
+    EXPECT_TRUE(val->asBool());
+}
+
+TEST_F(EvaluatorTest, FaceRefArea) {
+    auto evaluator = parseAndEvaluate(
+        "let a = box(40, 30, 10).face(\">Z\").area();");
+    auto val = evaluator.environment()->lookup("a");
+    EXPECT_EQ(val->type(), ValueType::NUMBER);
+    EXPECT_NEAR(val->asNumber(), 1200.0, 1.0);
+}
+
+TEST_F(EvaluatorTest, WorkplaneOffset) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").workplane().offset(5).draw().circle(5).extrude(10);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, UnknownMethodOnFaceRefThrows) {
+    EXPECT_THROW(
+        parseAndEvaluate("let x = box(10,10,10).face(\">Z\").nonexistent();"),
+        EvalError);
+}
+
+TEST_F(EvaluatorTest, InvalidFaceSelectorStringThrows) {
+    EXPECT_THROW(
+        parseAndEvaluate("let x = box(10,10,10).face(\"invalid\");"),
+        EvalError);
+}
