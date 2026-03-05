@@ -8,6 +8,56 @@ All designs in this document build on the Phase 0 infrastructure: `Value`, `Envi
 
 ---
 
+## 0. Syntax Style Exploration (Pre-Requisite)
+
+**Before committing to the language spec below, iterate on syntax feel.**
+
+The syntax choices in sections 1–7 are a starting point, not final. Before implementing the full grammar (Phase 4), we need to explore alternative syntax styles and settle on one that feels right. Language feel is subjective and hard to change later — it's worth spending time here.
+
+### Process
+
+1. **Pick a reference model** — a single realistic design (e.g., an electronics enclosure with shell, screw bosses, connector cutouts, and vent slots) that exercises most language features: bindings, functions, loops, face selection, boolean ops, imports, and DFM.
+
+2. **Write 3–4 syntax variants** of that same model, varying the key style decisions:
+
+| Decision | Option A | Option B | Option C |
+|----------|----------|----------|----------|
+| Bindings | `let x = 5;` | `x = 5;` | `var x = 5;` |
+| Immutable | `const` | `val` | `let` (with `mut` for mutable) |
+| Functions | `fn name() {}` | `function name() {}` | `def name() {}` |
+| Modules | `module name() {}` | `part name() {}` | `component name() {}` |
+| Boolean ops | `.fuse(b)` | `a + b` | `union(a, b)` |
+| Subtraction | `.cut(b)` | `a - b` | `difference(a, b)` |
+| Face selection | `.face(">Z")` | `.topFace()` | `.face(@top)` |
+| Edge selectors | `edges: @vertical` | `edges: ">Z"` | `edges: vertical()` |
+| Semicolons | Required | Optional (newline-terminated) | Required |
+| Method chains | `.fillet(2).translate([0,0,5])` | `\|> fillet(2) \|> translate(0,0,5)` | same as A |
+| Units | `2.5mm` | `2.5 mm` | `mm(2.5)` |
+| Sketch blocks | `shape.face(">Z").sketch() { ... }` | `sketch(on: shape.topFace()) { ... }` | `workplane(">Z") { ... }` |
+| Patterns | `.linear_pattern(...)` | `.repeat(linear(...))` | `pattern(linear, ...) { shape }` |
+
+3. **Review side by side** — read each variant as if you're a user writing a model at 11pm. Which one requires the least mental overhead? Which one is least ambiguous?
+
+4. **Lock the style** — update this document with the chosen syntax, then proceed to Phase 4 grammar implementation.
+
+### What can change cheaply vs expensively
+
+| Change | Cost | Why |
+|--------|------|-----|
+| Keywords (`fn` vs `def`) | Cheap | Grammar token swap, no evaluator change |
+| Operator syntax (`+` vs `.fuse()`) | Cheap | Grammar precedence rules, evaluator dispatch |
+| Semicolons yes/no | Moderate | Grammar needs newline-sensitivity or auto-insertion |
+| Face/edge selector syntax | Cheap | Grammar + evaluator selector parsing |
+| Block structure (braces vs indent) | Expensive | Fundamental grammar restructure, ANTLR indent tokens |
+| Method chaining vs function wrapping | Moderate | Evaluator dispatch model changes |
+| Type system (units, dimensions) | Moderate | Value representation, compile-time checks |
+
+### Key principle
+
+**The grammar file (`OpenDCAD.g4`) is the single source of truth for syntax.** Changing syntax style means editing the grammar and regenerating the parser. The geometry engine, Shape API, and OCCT layer are completely unaffected. Iterate freely on syntax without worrying about downstream breakage.
+
+---
+
 ## 1. Core Syntax
 
 ### 1.1 Bindings: `let` and `const`
@@ -2479,6 +2529,10 @@ export bottom.fuse(top) as rpi4_case_assembly;
 ## 9. Implementation Roadmap
 
 Phase 3 is a large language expansion. The implementation should be staged:
+
+### Stage 0: Syntax Style Lock-In (before any implementation)
+
+Complete the syntax exploration process described in Section 0 above. Write the reference model in 3–4 syntax variants, review them, and update this document with the chosen style. **No grammar or evaluator work begins until the syntax is locked.**
 
 ### Stage 3a: Core Language (estimated: 2-3 weeks)
 
