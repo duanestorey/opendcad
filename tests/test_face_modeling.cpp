@@ -264,3 +264,131 @@ TEST(FaceRefTest, InvalidSelectorThrows) {
     auto box = Shape::createBox(10, 10, 10);
     EXPECT_THROW(box->face("invalid"), GeometryError);
 }
+
+// =============================================================================
+// Sketch Slot Tests
+// =============================================================================
+
+TEST(SketchTest, SlotExtrude) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->slot(20, 8)->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, SlotCutThrough) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->slot(25, 8)->cutThrough();
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, SlotOffCenter) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto result = box->face(">Z")->draw()->slot(15, 6, 5, 3)->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+// =============================================================================
+// Sketch ArcTo Tests
+// =============================================================================
+
+TEST(SketchTest, ArcToFreeformExtrude) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->moveTo(-10, 0);
+    sk->arcTo(0, 10, 5);
+    sk->arcTo(10, 0, 5);
+    sk->lineTo(10, -5);
+    sk->lineTo(-10, -5);
+    sk->close();
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, ArcToBulgePositive) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->moveTo(-5, -5);
+    sk->arcTo(5, -5, 3);
+    sk->lineTo(5, 5);
+    sk->lineTo(-5, 5);
+    sk->close();
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, ArcToBulgeNegative) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->moveTo(-5, -5);
+    sk->arcTo(5, -5, -3);
+    sk->lineTo(5, 5);
+    sk->lineTo(-5, 5);
+    sk->close();
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, ArcToZeroBulgeFallback) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->moveTo(-5, -5);
+    sk->arcTo(5, -5, 0.0); // should become a straight line
+    sk->lineTo(5, 5);
+    sk->lineTo(-5, 5);
+    sk->close();
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+// =============================================================================
+// Sketch SplineTo Tests
+// =============================================================================
+
+TEST(SketchTest, SplineToExtrude) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->moveTo(-10, 0);
+    sk->splineTo({{-5, 5}, {0, 3}}, 10, 0);
+    sk->lineTo(10, -5);
+    sk->lineTo(-10, -5);
+    sk->close();
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, SplineMultiplePoints) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto sk = box->face(">Z")->draw();
+    sk->moveTo(-10, 0);
+    sk->splineTo({{-7, 4}, {-3, 6}, {3, 6}, {7, 4}}, 10, 0);
+    sk->lineTo(10, -5);
+    sk->lineTo(-10, -5);
+    sk->close();
+    auto result = sk->extrude(5);
+    EXPECT_TRUE(result->isValid());
+}
+
+// =============================================================================
+// Sketch Revolve Tests
+// =============================================================================
+
+TEST(SketchTest, RevolveFullCircle) {
+    auto box = Shape::createBox(40, 40, 10);
+    // Circle offset in Y (perpendicular to X rotation axis)
+    auto result = box->face(">Z")->draw()->circle(2, 0, 12)->revolve(360);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, RevolvePartialAngle) {
+    auto box = Shape::createBox(40, 40, 10);
+    auto result = box->face(">Z")->draw()->circle(2, 0, 12)->revolve(180);
+    EXPECT_TRUE(result->isValid());
+}
+
+TEST(SketchTest, RevolveFusesWithParent) {
+    auto box = Shape::createBox(40, 40, 10);
+    auto result = box->face(">Z")->draw()->circle(2, 0, 12)->revolve(360);
+    EXPECT_TRUE(result->isValid());
+    // The result should have more faces than original 6-face box
+    EXPECT_GT(result->faces()->count(), 6);
+}

@@ -7,14 +7,20 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Vec.hxx>
+#include <gp_Ax1.hxx>
 #include <TopoDS.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
+#include <GC_MakeArcOfCircle.hxx>
+#include <GeomAPI_PointsToBSpline.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <TColgp_Array1OfPnt.hxx>
 
 namespace opendcad {
 
@@ -74,39 +80,153 @@ SketchPtr Sketch::polygon(const std::vector<std::pair<double,double>>& pts) {
     return shared_from_this();
 }
 
+SketchPtr Sketch::slot(double length, double width, double cx, double cy) {
+    double hw = width / 2.0;
+    double hl = length / 2.0;
+
+    // Stadium shape: rect body + semicircular endcaps
+    // Bottom-left to bottom-right (bottom line)
+    gp_Pnt p1 = toWorld3D(cx - hl + hw, cy - hw);
+    gp_Pnt p2 = toWorld3D(cx + hl - hw, cy - hw);
+    // Top-right to top-left (top line)
+    gp_Pnt p3 = toWorld3D(cx + hl - hw, cy + hw);
+    gp_Pnt p4 = toWorld3D(cx - hl + hw, cy + hw);
+
+    // Right semicircle center and midpoint
+    gp_Pnt rightCenter = toWorld3D(cx + hl - hw, cy);
+    gp_Pnt rightMid = toWorld3D(cx + hl, cy);
+
+    // Left semicircle center and midpoint
+    gp_Pnt leftCenter = toWorld3D(cx - hl + hw, cy);
+    gp_Pnt leftMid = toWorld3D(cx - hl, cy);
+
+    BRepBuilderAPI_MakeWire wireMaker;
+
+    // Bottom line
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(p1, p2));
+
+    // Right semicircle (p2 -> p3 through rightMid)
+    Handle(Geom_TrimmedCurve) rightArc = GC_MakeArcOfCircle(p2, rightMid, p3);
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(rightArc));
+
+    // Top line
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(p3, p4));
+
+    // Left semicircle (p4 -> p1 through leftMid)
+    Handle(Geom_TrimmedCurve) leftArc = GC_MakeArcOfCircle(p4, leftMid, p1);
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(leftArc));
+
+    if (!wireMaker.IsDone())
+        throw GeometryError("slot wire creation failed");
+
+    wires_.push_back(wireMaker.Wire());
+    return shared_from_this();
+}
+
 SketchPtr Sketch::moveTo(double x, double y) {
     // Finish any in-progress wire
-    if (wireStarted_ && wirePoints_.size() >= 2) {
+    if (wireStarted_ && !wireEdges_.empty()) {
         close();
     }
-    wirePoints_.clear();
-    wirePoints_.push_back(toWorld3D(x, y));
+    wireEdges_.clear();
+    wireStart_ = toWorld3D(x, y);
+    wireCurrent_ = wireStart_;
     wireStarted_ = true;
     return shared_from_this();
 }
 
 SketchPtr Sketch::lineTo(double x, double y) {
-    if (!wireStarted_ || wirePoints_.empty())
+    if (!wireStarted_)
         throw GeometryError("lineTo() requires a preceding moveTo()");
-    wirePoints_.push_back(toWorld3D(x, y));
+    gp_Pnt endPt = toWorld3D(x, y);
+    wireEdges_.push_back(BRepBuilderAPI_MakeEdge(wireCurrent_, endPt));
+    wireCurrent_ = endPt;
+    return shared_from_this();
+}
+
+SketchPtr Sketch::arcTo(double x, double y, double bulge) {
+    if (!wireStarted_)
+        throw GeometryError("arcTo() requires a preceding moveTo()");
+
+    gp_Pnt endPt = toWorld3D(x, y);
+
+    // If bulge is near zero, fall back to straight line
+    if (std::abs(bulge) < 1e-6) {
+        wireEdges_.push_back(BRepBuilderAPI_MakeEdge(wireCurrent_, endPt));
+        wireCurrent_ = endPt;
+        return shared_from_this();
+    }
+
+    // Compute through-point for 3-point arc
+    // Chord midpoint
+    gp_Pnt mid((wireCurrent_.X() + endPt.X()) / 2.0,
+               (wireCurrent_.Y() + endPt.Y()) / 2.0,
+               (wireCurrent_.Z() + endPt.Z()) / 2.0);
+
+    // Chord vector and perpendicular in workplane
+    gp_Vec chord(wireCurrent_, endPt);
+    gp_Vec normal(wp_->normal());
+    gp_Vec perp = chord.Crossed(normal);
+    if (perp.Magnitude() < 1e-10)
+        throw GeometryError("arcTo: degenerate arc (points on normal axis)");
+    perp.Normalize();
+
+    // Through-point at sagitta distance from midpoint
+    gp_Pnt throughPt(mid.X() + perp.X() * bulge,
+                     mid.Y() + perp.Y() * bulge,
+                     mid.Z() + perp.Z() * bulge);
+
+    Handle(Geom_TrimmedCurve) arc = GC_MakeArcOfCircle(wireCurrent_, throughPt, endPt);
+    wireEdges_.push_back(BRepBuilderAPI_MakeEdge(arc));
+    wireCurrent_ = endPt;
+    return shared_from_this();
+}
+
+SketchPtr Sketch::splineTo(const std::vector<std::pair<double,double>>& throughPts, double ex, double ey) {
+    if (!wireStarted_)
+        throw GeometryError("splineTo() requires a preceding moveTo()");
+
+    // Collect all points: current + through points + end
+    int nPts = static_cast<int>(throughPts.size()) + 2;
+    if (nPts < 3)
+        throw GeometryError("splineTo() requires at least 1 through-point");
+
+    TColgp_Array1OfPnt points(1, nPts);
+    points.SetValue(1, wireCurrent_);
+    for (size_t i = 0; i < throughPts.size(); ++i) {
+        points.SetValue(static_cast<int>(i) + 2, toWorld3D(throughPts[i].first, throughPts[i].second));
+    }
+    gp_Pnt endPt = toWorld3D(ex, ey);
+    points.SetValue(nPts, endPt);
+
+    GeomAPI_PointsToBSpline bspline(points);
+    if (!bspline.IsDone())
+        throw GeometryError("splineTo: B-spline interpolation failed");
+
+    wireEdges_.push_back(BRepBuilderAPI_MakeEdge(bspline.Curve()));
+    wireCurrent_ = endPt;
     return shared_from_this();
 }
 
 SketchPtr Sketch::close() {
-    if (wirePoints_.size() < 3)
-        throw GeometryError("close() requires at least 3 points");
+    if (!wireStarted_ || wireEdges_.empty())
+        throw GeometryError("close() requires at least one line/arc segment after moveTo()");
 
-    BRepBuilderAPI_MakePolygon poly;
-    for (const auto& pt : wirePoints_) {
-        poly.Add(pt);
+    // Add closing edge if current point != start point
+    if (wireCurrent_.Distance(wireStart_) > 1e-6) {
+        wireEdges_.push_back(BRepBuilderAPI_MakeEdge(wireCurrent_, wireStart_));
     }
-    poly.Close();
 
-    if (!poly.IsDone())
+    BRepBuilderAPI_MakeWire wireMaker;
+    for (const auto& edge : wireEdges_) {
+        wireMaker.Add(edge);
+    }
+
+    if (!wireMaker.IsDone())
         throw GeometryError("freeform wire creation failed");
 
-    wires_.push_back(poly.Wire());
-    wirePoints_.clear();
+    wires_.push_back(wireMaker.Wire());
+    wireEdges_.clear();
     wireStarted_ = false;
     return shared_from_this();
 }
@@ -196,6 +316,29 @@ ShapePtr Sketch::cutThrough() const {
     auto tool2 = std::make_shared<Shape>(prism2.Shape());
     auto combinedTool = tool1->fuse(tool2);
     return parent_->cut(combinedTool);
+}
+
+ShapePtr Sketch::revolve(double angleDeg) const {
+    TopoDS_Face face = makeFace();
+    gp_Ax1 axis(wp_->origin(), wp_->axes().XDirection());
+
+    if (std::abs(angleDeg - 360.0) < 1e-6) {
+        BRepPrimAPI_MakeRevol revol(face, axis);
+        revol.Build();
+        if (!revol.IsDone())
+            throw GeometryError("sketch revolve failed");
+        auto revolved = std::make_shared<Shape>(revol.Shape());
+        return parent_->fuse(revolved);
+    }
+
+    double angleRad = angleDeg * M_PI / 180.0;
+    BRepPrimAPI_MakeRevol revol(face, axis, angleRad);
+    revol.Build();
+    if (!revol.IsDone())
+        throw GeometryError("sketch revolve failed");
+
+    auto revolved = std::make_shared<Shape>(revol.Shape());
+    return parent_->fuse(revolved);
 }
 
 } // namespace opendcad

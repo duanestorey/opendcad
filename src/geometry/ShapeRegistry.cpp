@@ -518,6 +518,48 @@ void ShapeRegistry::registerDefaults() {
             return Value::makeShape(self->asSketch()->cutThrough());
         });
 
+    registerTypedMethod(ValueType::SKETCH, "slot",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double length = requireNumber(args, 0, "slot");
+            double width = requireNumber(args, 1, "slot");
+            double cx = args.size() > 2 ? args[2]->asNumber() : 0;
+            double cy = args.size() > 3 ? args[3]->asNumber() : 0;
+            return Value::makeSketch(self->asSketch()->slot(length, width, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "arcTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double x = requireNumber(args, 0, "arcTo");
+            double y = requireNumber(args, 1, "arcTo");
+            double bulge = requireNumber(args, 2, "arcTo");
+            return Value::makeSketch(self->asSketch()->arcTo(x, y, bulge));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "splineTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            // Last two args are end x, y; preceding args are through-point vectors
+            if (args.size() < 3)
+                throw EvalError("splineTo() requires at least 1 through-point vector and end x, y");
+            double ey = args.back()->asNumber();
+            double ex = args[args.size() - 2]->asNumber();
+            std::vector<std::pair<double,double>> throughPts;
+            for (size_t i = 0; i < args.size() - 2; ++i) {
+                const auto& v = args[i]->asVector();
+                if (v.size() < 2)
+                    throw EvalError("splineTo through-point must have at least 2 coordinates");
+                throughPts.emplace_back(v[0], v[1]);
+            }
+            return Value::makeSketch(self->asSketch()->splineTo(throughPts, ex, ey));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "revolve",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double angle = 360.0;
+            if (!args.empty())
+                angle = args[0]->asNumber();
+            return Value::makeShape(self->asSketch()->revolve(angle));
+        });
+
     // =========================================================================
     // Typed Methods — EDGE_SELECTOR
     // =========================================================================
