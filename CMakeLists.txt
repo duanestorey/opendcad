@@ -15,7 +15,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # OpenCascade — prefer imported component targets; otherwise fall back to legacy vars
 # --------------------------------------------------------------------------------------
 set(_occt_components
-  TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKTopAlgo TKSTL
+  TKernel TKMath TKG2d TKG3d TKGeomBase TKGeomAlgo TKBRep TKTopAlgo TKSTL
   TKPrim TKBO TKFillet TKOffset TKShHealing
   TKSTEP TKSTEPBase TKSTEPAttr TKXSBase
 )
@@ -34,6 +34,7 @@ function(link_occt target)
       OpenCASCADE::TKG2d
       OpenCASCADE::TKG3d
       OpenCASCADE::TKGeomBase
+      OpenCASCADE::TKGeomAlgo
       OpenCASCADE::TKBRep
       OpenCASCADE::TKTopAlgo
       OpenCASCADE::TKSTL

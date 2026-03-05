@@ -97,6 +97,7 @@ int main(int argc, char* argv[]) {
     DEBUG_INFO("Evaluation complete - " << evaluator.exports().size() << " export(s)");
 
     // Export each shape
+    int failures = 0;
     for (const auto& entry : evaluator.exports()) {
         DEBUG_INFO("Healing shape for export: " << entry.name);
         TopoDS_Shape healed = healShape(entry.shape->getShape());
@@ -107,18 +108,20 @@ int main(int argc, char* argv[]) {
         if (!StepExporter::write(healed, stepPath)) {
             std::cerr << termcolor::red << "STEP export failed for " << entry.name
                       << termcolor::reset << "\n";
-            return 1;
+            ++failures;
+            continue;
         }
 
         if (!StlExporter::write(healed, stlPath, {0.01, 0.1, true})) {
             std::cerr << termcolor::red << "STL export failed for " << entry.name
                       << termcolor::reset << "\n";
-            return 1;
+            ++failures;
+            continue;
         }
 
         std::cout << termcolor::green << "Exported: " << termcolor::white << entry.name
                   << termcolor::reset << " (" << stepPath << ", " << stlPath << ")\n";
     }
 
-    return 0;
+    return failures > 0 ? 1 : 0;
 }
