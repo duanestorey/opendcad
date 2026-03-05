@@ -51,7 +51,9 @@ static ShapePtr requireShape(const std::vector<ValuePtr>& args, size_t index, co
 }
 
 void ShapeRegistry::registerDefaults() {
-    // --- Factories ---
+    // =========================================================================
+    // Factories
+    // =========================================================================
 
     registerFactory("box", [](const std::vector<ValuePtr>& args) -> ShapePtr {
         if (args.size() != 3)
@@ -78,7 +80,62 @@ void ShapeRegistry::registerDefaults() {
                                 args[2]->asNumber(), args[3]->asNumber());
     });
 
-    // --- Methods ---
+    registerFactory("sphere", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 1)
+            throw EvalError("sphere() requires 1 argument (radius), got " + std::to_string(args.size()));
+        return Shape::createSphere(args[0]->asNumber());
+    });
+
+    registerFactory("cone", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 3)
+            throw EvalError("cone() requires 3 arguments (r1, r2, height), got " + std::to_string(args.size()));
+        return Shape::createCone(args[0]->asNumber(), args[1]->asNumber(), args[2]->asNumber());
+    });
+
+    registerFactory("wedge", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 4)
+            throw EvalError("wedge() requires 4 arguments (dx, dy, dz, ltx), got " + std::to_string(args.size()));
+        return Shape::createWedge(args[0]->asNumber(), args[1]->asNumber(),
+                                  args[2]->asNumber(), args[3]->asNumber());
+    });
+
+    registerFactory("circle", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 1)
+            throw EvalError("circle() requires 1 argument (radius), got " + std::to_string(args.size()));
+        return Shape::createCircle(args[0]->asNumber());
+    });
+
+    registerFactory("rectangle", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 2)
+            throw EvalError("rectangle() requires 2 arguments (width, height), got " + std::to_string(args.size()));
+        return Shape::createRectangle(args[0]->asNumber(), args[1]->asNumber());
+    });
+
+    registerFactory("polygon", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() < 3)
+            throw EvalError("polygon() requires at least 3 vector arguments (points), got " + std::to_string(args.size()));
+        std::vector<std::pair<double,double>> pts;
+        for (const auto& arg : args) {
+            const auto& v = arg->asVector();
+            if (v.size() < 2)
+                throw EvalError("polygon() each point must have at least 2 coordinates");
+            pts.emplace_back(v[0], v[1]);
+        }
+        return Shape::createPolygon(pts);
+    });
+
+    registerFactory("loft", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() < 2)
+            throw EvalError("loft() requires at least 2 profile arguments, got " + std::to_string(args.size()));
+        std::vector<ShapePtr> profiles;
+        for (const auto& arg : args)
+            profiles.push_back(arg->asShape());
+        return Shape::createLoft(profiles);
+    });
+
+    // =========================================================================
+    // Methods
+    // =========================================================================
 
     registerMethod("fuse", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
         auto other = requireShape(args, 0, "fuse");
@@ -90,9 +147,19 @@ void ShapeRegistry::registerDefaults() {
         return Value::makeShape(self->cut(other));
     });
 
+    registerMethod("intersect", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        auto other = requireShape(args, 0, "intersect");
+        return Value::makeShape(self->intersect(other));
+    });
+
     registerMethod("fillet", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
         double amount = requireNumber(args, 0, "fillet");
         return Value::makeShape(self->fillet(amount));
+    });
+
+    registerMethod("chamfer", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        double distance = requireNumber(args, 0, "chamfer");
+        return Value::makeShape(self->chamfer(distance));
     });
 
     registerMethod("flip", [](ShapePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
@@ -131,6 +198,61 @@ void ShapeRegistry::registerDefaults() {
             throw EvalError("rotate() requires a vector or 3 number arguments");
         }
         return Value::makeShape(self->rotate(rx, ry, rz));
+    });
+
+    registerMethod("scale", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        if (args.size() == 1) {
+            if (args[0]->type() == ValueType::VECTOR) {
+                const auto& v = args[0]->asVector();
+                if (v.size() != 3)
+                    throw EvalError("scale() vector must have 3 components");
+                return Value::makeShape(self->scale(v[0], v[1], v[2]));
+            }
+            return Value::makeShape(self->scale(args[0]->asNumber()));
+        } else if (args.size() == 3) {
+            return Value::makeShape(self->scale(
+                args[0]->asNumber(), args[1]->asNumber(), args[2]->asNumber()));
+        }
+        throw EvalError("scale() requires 1 number, 1 vector, or 3 numbers");
+    });
+
+    registerMethod("mirror", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        double nx = 0, ny = 0, nz = 0;
+        if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
+            const auto& v = args[0]->asVector();
+            nx = v.size() > 0 ? v[0] : 0;
+            ny = v.size() > 1 ? v[1] : 0;
+            nz = v.size() > 2 ? v[2] : 0;
+        } else if (args.size() == 3) {
+            nx = args[0]->asNumber();
+            ny = args[1]->asNumber();
+            nz = args[2]->asNumber();
+        } else {
+            throw EvalError("mirror() requires a vector or 3 number arguments");
+        }
+        return Value::makeShape(self->mirror(nx, ny, nz));
+    });
+
+    registerMethod("shell", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        double thickness = requireNumber(args, 0, "shell");
+        return Value::makeShape(self->shell(thickness));
+    });
+
+    registerMethod("linear_extrude", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        double height = requireNumber(args, 0, "linear_extrude");
+        return Value::makeShape(self->linearExtrude(height));
+    });
+
+    registerMethod("rotate_extrude", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        double angle = 360.0;
+        if (args.size() >= 1)
+            angle = args[0]->asNumber();
+        return Value::makeShape(self->rotateExtrude(angle));
+    });
+
+    registerMethod("sweep", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+        auto path = requireShape(args, 0, "sweep");
+        return Value::makeShape(self->sweep(path));
     });
 
     registerMethod("x", [](ShapePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {

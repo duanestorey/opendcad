@@ -1,0 +1,92 @@
+// Phase 1 Integration Test — exercises all 16 new capabilities
+// Run: ./build/bin/opendcad examples/phase1_test.dcad build/output
+
+// ============================================================
+// Tier 1: 3D Primitives + Operations
+// ============================================================
+
+// 1. Sphere
+let ball = sphere(15);
+export ball as sphere_test;
+
+// 2. Cone (truncated)
+let funnel = cone(10, 5, 20);
+export funnel as cone_test;
+
+// 3. Wedge
+let ramp = wedge(30, 20, 15, 8);
+export ramp as wedge_test;
+
+// 4. Intersect — overlap of two boxes
+let big = box(20, 20, 20);
+let small = box(15, 15, 15).translate([5, 5, 5]);
+let overlap = big.intersect(small);
+export overlap as intersect_test;
+
+// 5. Chamfer — all edges of a box
+let chamfered = box(20, 20, 20).chamfer(2);
+export chamfered as chamfer_test;
+
+// ============================================================
+// Tier 2: 2D Primitives
+// ============================================================
+
+// 6. Circle
+let disk = circle(10);
+export disk as circle_test;
+
+// 7. Rectangle
+let plate = rectangle(30, 20);
+export plate as rectangle_test;
+
+// 8. Polygon (triangle)
+let tri = polygon([0,0], [20,0], [10,15]);
+export tri as polygon_test;
+
+// ============================================================
+// Tier 3: Extrusion and Revolution
+// ============================================================
+
+// 9. Linear extrude — circle to cylinder
+let extruded_cyl = circle(8).linear_extrude(25);
+export extruded_cyl as linear_extrude_test;
+
+// 10. Rotate extrude — circle in XZ plane, offset from Z axis, revolved 360
+let torus_shape = circle(3).rotate([90, 0, 0]).translate([15, 0, 0]).rotate_extrude(360);
+export torus_shape as rotate_extrude_test;
+
+// 11. Loft — two circles of different sizes
+let bottom = circle(12);
+let top = circle(6).translate([0, 0, 30]);
+let vase = loft(bottom, top);
+export vase as loft_test;
+
+// ============================================================
+// Tier 4: Scale, Mirror, Shell
+// ============================================================
+
+// 12. Uniform scale
+let scaled_box = box(10, 10, 10).scale(3);
+export scaled_box as scale_uniform_test;
+
+// 13. Non-uniform scale
+let stretched = box(10, 10, 10).scale([2, 1, 0.5]);
+export stretched as scale_nonuniform_test;
+
+// 14. Mirror across XY plane
+let mirrored = box(10, 10, 10).translate([0, 0, 10]).mirror([0, 0, 1]);
+export mirrored as mirror_test;
+
+// 15. Shell — hollow box with open top
+let hollowed = box(30, 30, 20).shell(2);
+export hollowed as shell_test;
+
+// ============================================================
+// Combo: Fillet + Chamfer comparison
+// ============================================================
+
+let filleted = box(20, 20, 20).fillet(2);
+export filleted as fillet_compare;
+
+let chamfered2 = box(20, 20, 20).chamfer(2);
+export chamfered2 as chamfer_compare;

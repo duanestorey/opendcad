@@ -35,6 +35,10 @@ protected:
     }
 };
 
+// =============================================================================
+// Phase 0 — Existing Tests
+// =============================================================================
+
 TEST_F(EvaluatorTest, LetNumber) {
     auto evaluator = parseAndEvaluate("let x = 42;");
     auto val = evaluator.environment()->lookup("x");
@@ -80,7 +84,7 @@ TEST_F(EvaluatorTest, UndefinedVariableThrows) {
 }
 
 TEST_F(EvaluatorTest, UnknownFactoryThrows) {
-    EXPECT_THROW(parseAndEvaluate("let x = sphere(5);"), EvalError);
+    EXPECT_THROW(parseAndEvaluate("let x = nonexistent_shape(5);"), EvalError);
 }
 
 TEST_F(EvaluatorTest, VectorLiteral) {
@@ -109,4 +113,100 @@ TEST_F(EvaluatorTest, MultipleExports) {
     EXPECT_EQ(evaluator.exports().size(), 2u);
     EXPECT_EQ(evaluator.exports()[0].name, "first");
     EXPECT_EQ(evaluator.exports()[1].name, "second");
+}
+
+// =============================================================================
+// Phase 1 — New Factory Tests
+// =============================================================================
+
+TEST_F(EvaluatorTest, SphereFactory) {
+    auto evaluator = parseAndEvaluate("let s = sphere(10);");
+    auto val = evaluator.environment()->lookup("s");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ConeFactory) {
+    auto evaluator = parseAndEvaluate("let c = cone(10, 5, 20);");
+    auto val = evaluator.environment()->lookup("c");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, WedgeFactory) {
+    auto evaluator = parseAndEvaluate("let w = wedge(20, 10, 15, 5);");
+    auto val = evaluator.environment()->lookup("w");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, CircleFactory) {
+    auto evaluator = parseAndEvaluate("let c = circle(5);");
+    auto val = evaluator.environment()->lookup("c");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, RectangleFactory) {
+    auto evaluator = parseAndEvaluate("let r = rectangle(10, 20);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+// =============================================================================
+// Phase 1 — New Method Tests
+// =============================================================================
+
+TEST_F(EvaluatorTest, IntersectMethod) {
+    auto evaluator = parseAndEvaluate(
+        "let a = box(20, 20, 20);\n"
+        "let b = box(10, 10, 10);\n"
+        "let c = a.intersect(b);\n"
+    );
+    auto val = evaluator.environment()->lookup("c");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ChamferMethod) {
+    auto evaluator = parseAndEvaluate("let c = box(20, 20, 20).chamfer(1);");
+    auto val = evaluator.environment()->lookup("c");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, LinearExtrudeMethod) {
+    auto evaluator = parseAndEvaluate("let s = circle(5).linear_extrude(10);");
+    auto val = evaluator.environment()->lookup("s");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ScaleUniformMethod) {
+    auto evaluator = parseAndEvaluate("let s = box(10, 10, 10).scale(2);");
+    auto val = evaluator.environment()->lookup("s");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ScaleNonUniformMethod) {
+    auto evaluator = parseAndEvaluate("let s = box(10, 10, 10).scale([2, 1, 0.5]);");
+    auto val = evaluator.environment()->lookup("s");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, MirrorMethod) {
+    auto evaluator = parseAndEvaluate("let s = box(10, 10, 10).mirror([0, 0, 1]);");
+    auto val = evaluator.environment()->lookup("s");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ShellMethod) {
+    auto evaluator = parseAndEvaluate("let s = box(20, 20, 20).shell(2);");
+    auto val = evaluator.environment()->lookup("s");
+    EXPECT_EQ(val->type(), ValueType::SHAPE);
+    EXPECT_TRUE(val->asShape()->isValid());
 }
