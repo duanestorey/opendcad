@@ -40,11 +40,11 @@ postfix
   ;
 
 call
-  : IDENT '(' argList ')'                        // ctors must have args
+  : IDENT '(' argList? ')'
   ;
 
 methodCall
-  : IDENT '(' argList ')'                        // methods must have args
+  : IDENT '(' argList? ')'
   ;
 
 argList
@@ -62,9 +62,10 @@ expr
 
 primary
   : NUMBER
+  | STRING
   | vectorLiteral
   | postfix
-  | IDENT            // <-- add this: bare variable as an expression
+  | IDENT
   | '(' expr ')'
   ;
 
@@ -74,6 +75,10 @@ vectorLiteral
   ;
 
 // ---------- Lexer ----------
+
+STRING
+  : '"' (~["\\\r\n] | '\\' .)* '"'
+  ;
 
 IDENT
   : [a-zA-Z_] [a-zA-Z_0-9]*
