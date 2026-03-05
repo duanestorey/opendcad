@@ -27,9 +27,13 @@ using EdgeSelectorPtr = std::shared_ptr<EdgeSelector>;
 class Value;
 using ValuePtr = std::shared_ptr<Value>;
 
+struct FunctionDef;
+using FunctionDefPtr = std::shared_ptr<FunctionDef>;
+
 enum class ValueType {
     NUMBER, STRING, BOOL, VECTOR, SHAPE, NIL,
-    FACE_REF, FACE_SELECTOR, WORKPLANE, SKETCH, EDGE_SELECTOR
+    FACE_REF, FACE_SELECTOR, WORKPLANE, SKETCH, EDGE_SELECTOR,
+    LIST, FUNCTION
 };
 
 class Value {
@@ -45,6 +49,8 @@ public:
     static ValuePtr makeWorkplane(WorkplanePtr v);
     static ValuePtr makeSketch(SketchPtr v);
     static ValuePtr makeEdgeSelector(EdgeSelectorPtr v);
+    static ValuePtr makeList(const std::vector<ValuePtr>& elements);
+    static ValuePtr makeFunction(FunctionDefPtr fn);
 
     ValueType type() const { return type_; }
     std::string typeName() const;
@@ -59,6 +65,12 @@ public:
     WorkplanePtr asWorkplane() const;
     SketchPtr asSketch() const;
     EdgeSelectorPtr asEdgeSelector() const;
+    const std::vector<ValuePtr>& asList() const;
+    void listPush(ValuePtr element);
+    ValuePtr listGet(int index) const;
+    int listLength() const;
+    std::vector<double> toVector() const;
+    FunctionDefPtr asFunction() const;
     bool isTruthy() const;
 
     ValuePtr add(const ValuePtr& other) const;
@@ -67,6 +79,14 @@ public:
     ValuePtr divide(const ValuePtr& other) const;
     ValuePtr modulo(const ValuePtr& other) const;
     ValuePtr negate() const;
+
+    ValuePtr equal(const ValuePtr& other) const;
+    ValuePtr notEqual(const ValuePtr& other) const;
+    ValuePtr lessThan(const ValuePtr& other) const;
+    ValuePtr greaterThan(const ValuePtr& other) const;
+    ValuePtr lessEqual(const ValuePtr& other) const;
+    ValuePtr greaterEqual(const ValuePtr& other) const;
+    ValuePtr logicalNot() const;
 
     std::string toString() const;
 
@@ -82,6 +102,8 @@ private:
     WorkplanePtr workplane_;
     SketchPtr sketch_;
     EdgeSelectorPtr edgeSelector_;
+    std::vector<ValuePtr> list_;
+    FunctionDefPtr functionDef_;
 };
 
 } // namespace opendcad

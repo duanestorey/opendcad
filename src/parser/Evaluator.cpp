@@ -1,11 +1,73 @@
 #include "Evaluator.h"
+#include "FunctionDef.h"
 #include "ShapeRegistry.h"
 #include "Debug.h"
 
 namespace opendcad {
 
 Evaluator::Evaluator()
-    : env_(std::make_shared<Environment>()) {}
+    : env_(std::make_shared<Environment>()) {
+    registerBuiltins();
+}
+
+void Evaluator::registerBuiltins() {
+    builtins_["vec"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        if (args.size() < 2 || args.size() > 3)
+            throw EvalError("vec() requires 2 or 3 arguments, got " + std::to_string(args.size()));
+        std::vector<double> components;
+        for (const auto& a : args)
+            components.push_back(a->asNumber());
+        return Value::makeVector(components);
+    };
+
+    builtins_["list"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        return Value::makeList(args);
+    };
+
+    builtins_["len"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        if (args.size() != 1)
+            throw EvalError("len() requires 1 argument");
+        if (args[0]->type() == ValueType::LIST)
+            return Value::makeNumber(args[0]->listLength());
+        if (args[0]->type() == ValueType::VECTOR)
+            return Value::makeNumber(static_cast<double>(args[0]->asVector().size()));
+        if (args[0]->type() == ValueType::STRING)
+            return Value::makeNumber(static_cast<double>(args[0]->asString().size()));
+        throw EvalError("len() requires a list, vector, or string");
+    };
+
+    builtins_["range"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        if (args.size() < 1 || args.size() > 3)
+            throw EvalError("range() requires 1-3 arguments");
+        double start = 0, stop, step = 1;
+        if (args.size() == 1) {
+            stop = args[0]->asNumber();
+        } else {
+            start = args[0]->asNumber();
+            stop = args[1]->asNumber();
+            if (args.size() == 3) step = args[2]->asNumber();
+        }
+        if (step == 0) throw EvalError("range() step cannot be 0");
+        std::vector<ValuePtr> result;
+        if (step > 0) {
+            for (double i = start; i < stop; i += step)
+                result.push_back(Value::makeNumber(i));
+        } else {
+            for (double i = start; i > stop; i += step)
+                result.push_back(Value::makeNumber(i));
+        }
+        return Value::makeList(result);
+    };
+
+    builtins_["print"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        for (size_t i = 0; i < args.size(); i++) {
+            if (i > 0) std::cout << " ";
+            std::cout << args[i]->toString();
+        }
+        std::cout << "\n";
+        return Value::makeNil();
+    };
+}
 
 void Evaluator::evaluate(OpenDCADParser::ProgramContext* tree,
                          const std::string& filename) {
@@ -37,8 +99,13 @@ ValuePtr Evaluator::toValue(antlrcpp::Any result) {
 std::vector<ValuePtr> Evaluator::evaluateArgs(OpenDCADParser::ArgListContext* ctx) {
     std::vector<ValuePtr> args;
     if (!ctx) return args;
-    for (auto* expr : ctx->expr()) {
-        args.push_back(toValue(visit(expr)));
+    for (auto* argCtx : ctx->arg()) {
+        // For now, treat named args as positional (Phase 4 will handle names)
+        if (auto* named = dynamic_cast<OpenDCADParser::NamedArgContext*>(argCtx)) {
+            args.push_back(toValue(visit(named->expr())));
+        } else if (auto* positional = dynamic_cast<OpenDCADParser::PositionalArgContext*>(argCtx)) {
+            args.push_back(toValue(visit(positional->expr())));
+        }
     }
     return args;
 }
@@ -76,7 +143,7 @@ ValuePtr Evaluator::applyMethodChain(
     return current;
 }
 
-// --- Visitor overrides ---
+// --- Program ---
 
 antlrcpp::Any Evaluator::visitProgram(OpenDCADParser::ProgramContext* ctx) {
     for (auto* stmt : ctx->stmt()) {
@@ -85,32 +152,102 @@ antlrcpp::Any Evaluator::visitProgram(OpenDCADParser::ProgramContext* ctx) {
     return Value::makeNil();
 }
 
-antlrcpp::Any Evaluator::visitLetAlias(OpenDCADParser::LetAliasContext* ctx) {
-    std::string name = ctx->IDENT(0)->getText();
-    std::string source = ctx->IDENT(1)->getText();
-    try {
-        ValuePtr value = env_->lookup(source);
-        env_->define(name, value);
-    } catch (const EvalError&) {
-        throw EvalError("undefined variable '" + source + "'", locFrom(ctx));
-    }
-    DEBUG_INFO("let " << name << " = " << source << " (alias)");
-    return Value::makeNil();
-}
+// --- Declarations ---
 
-antlrcpp::Any Evaluator::visitLetChain(OpenDCADParser::LetChainContext* ctx) {
-    std::string name = ctx->IDENT()->getText();
-    ValuePtr value = toValue(visit(ctx->chainExpr()));
-    env_->define(name, value);
-    DEBUG_INFO("let " << name << " = " << value->toString());
-    return Value::makeNil();
-}
-
-antlrcpp::Any Evaluator::visitLetValue(OpenDCADParser::LetValueContext* ctx) {
+antlrcpp::Any Evaluator::visitLetStmt(OpenDCADParser::LetStmtContext* ctx) {
     std::string name = ctx->IDENT()->getText();
     ValuePtr value = toValue(visit(ctx->expr()));
     env_->define(name, value);
     DEBUG_INFO("let " << name << " = " << value->toString());
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitConstStmt(OpenDCADParser::ConstStmtContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr value = toValue(visit(ctx->expr()));
+    env_->defineConst(name, value);
+    DEBUG_INFO("const " << name << " = " << value->toString());
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitAssignVar(OpenDCADParser::AssignVarContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr value = toValue(visit(ctx->expr()));
+    try {
+        env_->assign(name, value);
+    } catch (const EvalError& e) {
+        throw EvalError(std::string(e.what()), locFrom(ctx));
+    }
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitAssignIndex(OpenDCADParser::AssignIndexContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr list;
+    try {
+        list = env_->lookup(name);
+    } catch (const EvalError&) {
+        throw EvalError("undefined variable '" + name + "'", locFrom(ctx));
+    }
+    if (list->type() != ValueType::LIST)
+        throw EvalError("index assignment requires a list, got " + list->typeName(), locFrom(ctx));
+
+    ValuePtr indexVal = toValue(visit(ctx->expr(0)));
+    ValuePtr value = toValue(visit(ctx->expr(1)));
+    int index = static_cast<int>(indexVal->asNumber());
+
+    auto& items = const_cast<std::vector<ValuePtr>&>(list->asList());
+    if (index < 0 || index >= static_cast<int>(items.size()))
+        throw EvalError("list index " + std::to_string(index) + " out of bounds", locFrom(ctx));
+    items[index] = value;
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitCompoundAssignStmt(OpenDCADParser::CompoundAssignStmtContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr current;
+    try {
+        current = env_->lookup(name);
+    } catch (const EvalError&) {
+        throw EvalError("undefined variable '" + name + "'", locFrom(ctx));
+    }
+
+    ValuePtr rhs = toValue(visit(ctx->expr()));
+    std::string op;
+    if (ctx->PLUS_EQ()) op = "+=";
+    else if (ctx->MINUS_EQ()) op = "-=";
+    else if (ctx->STAR_EQ()) op = "*=";
+    else if (ctx->SLASH_EQ()) op = "/=";
+
+    ValuePtr result;
+    try {
+        if (op == "+=") result = current->add(rhs);
+        else if (op == "-=") result = current->subtract(rhs);
+        else if (op == "*=") result = current->multiply(rhs);
+        else if (op == "/=") result = current->divide(rhs);
+        else throw EvalError("unknown compound operator", locFrom(ctx));
+    } catch (const EvalError& e) {
+        throw EvalError(std::string(e.what()), locFrom(ctx));
+    }
+
+    env_->assign(name, result);
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitPostfixIncrStmt(OpenDCADParser::PostfixIncrStmtContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr current;
+    try {
+        current = env_->lookup(name);
+    } catch (const EvalError&) {
+        throw EvalError("undefined variable '" + name + "'", locFrom(ctx));
+    }
+
+    double val = current->asNumber();
+    if (ctx->INCR())
+        env_->assign(name, Value::makeNumber(val + 1));
+    else
+        env_->assign(name, Value::makeNumber(val - 1));
     return Value::makeNil();
 }
 
@@ -129,25 +266,281 @@ antlrcpp::Any Evaluator::visitExportStmt(OpenDCADParser::ExportStmtContext* ctx)
     return Value::makeNil();
 }
 
+antlrcpp::Any Evaluator::visitExprStmt(OpenDCADParser::ExprStmtContext* ctx) {
+    visit(ctx->chainExpr());
+    return Value::makeNil();
+}
+
+// --- Control Flow ---
+
+antlrcpp::Any Evaluator::visitBlock(OpenDCADParser::BlockContext* ctx) {
+    auto prevEnv = env_;
+    env_ = std::make_shared<Environment>(prevEnv);
+    for (auto* stmt : ctx->stmt()) {
+        visit(stmt);
+    }
+    env_ = prevEnv;
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitIfStmt(OpenDCADParser::IfStmtContext* ctx) {
+    auto blocks = ctx->block();
+    auto exprs = ctx->expr();
+
+    for (size_t i = 0; i < exprs.size(); i++) {
+        ValuePtr cond = toValue(visit(exprs[i]));
+        if (cond->isTruthy()) {
+            visit(blocks[i]);
+            return Value::makeNil();
+        }
+    }
+
+    // else block (if present — one more block than exprs)
+    if (blocks.size() > exprs.size()) {
+        visit(blocks.back());
+    }
+
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitForCStyle(OpenDCADParser::ForCStyleContext* ctx) {
+    auto prevEnv = env_;
+    env_ = std::make_shared<Environment>(prevEnv);
+
+    visit(ctx->forInit());
+
+    int iterations = 0;
+    while (true) {
+        ValuePtr cond = toValue(visit(ctx->expr()));
+        if (!cond->isTruthy()) break;
+
+        if (++iterations > MAX_ITERATIONS)
+            throw EvalError("maximum loop iterations exceeded", locFrom(ctx));
+
+        visit(ctx->block());
+        visit(ctx->forUpdate());
+    }
+
+    env_ = prevEnv;
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitForEach(OpenDCADParser::ForEachContext* ctx) {
+    std::string varName = ctx->IDENT()->getText();
+    ValuePtr collection = toValue(visit(ctx->expr()));
+
+    auto prevEnv = env_;
+    env_ = std::make_shared<Environment>(prevEnv);
+
+    if (collection->type() == ValueType::LIST) {
+        const auto& items = collection->asList();
+        for (const auto& item : items) {
+            env_->define(varName, item);
+            visit(ctx->block());
+        }
+    } else if (collection->type() == ValueType::VECTOR) {
+        const auto& vec = collection->asVector();
+        for (double v : vec) {
+            env_->define(varName, Value::makeNumber(v));
+            visit(ctx->block());
+        }
+    } else {
+        throw EvalError("for-in requires a list or vector, got " + collection->typeName(),
+                        locFrom(ctx));
+    }
+
+    env_ = prevEnv;
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitWhileStmt(OpenDCADParser::WhileStmtContext* ctx) {
+    int iterations = 0;
+    while (true) {
+        ValuePtr cond = toValue(visit(ctx->expr()));
+        if (!cond->isTruthy()) break;
+
+        if (++iterations > MAX_ITERATIONS)
+            throw EvalError("maximum loop iterations exceeded", locFrom(ctx));
+
+        visit(ctx->block());
+    }
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitReturnStmt(OpenDCADParser::ReturnStmtContext* ctx) {
+    ValuePtr val = ctx->expr() ? toValue(visit(ctx->expr())) : Value::makeNil();
+    throw ReturnValue{val};
+}
+
+// --- Functions ---
+
+antlrcpp::Any Evaluator::visitFnDecl(OpenDCADParser::FnDeclContext* ctx) {
+    auto fn = std::make_shared<FunctionDef>();
+    fn->name = ctx->IDENT()->getText();
+    fn->body = ctx->block();
+    fn->closure = env_;
+
+    if (ctx->paramList()) {
+        for (auto* param : ctx->paramList()->param()) {
+            fn->params.push_back(param->IDENT()->getText());
+            if (param->expr()) {
+                fn->defaults[param->IDENT()->getText()] = toValue(visit(param->expr()));
+            }
+        }
+    }
+
+    env_->define(fn->name, Value::makeFunction(fn));
+    DEBUG_INFO("fn " << fn->name << " (" << fn->params.size() << " params)");
+    return Value::makeNil();
+}
+
+ValuePtr Evaluator::callFunction(
+    FunctionDefPtr fn,
+    const std::vector<ValuePtr>& positionalArgs,
+    const std::unordered_map<std::string, ValuePtr>& namedArgs)
+{
+    auto callEnv = std::make_shared<Environment>(fn->closure);
+
+    // Bind parameters
+    for (size_t i = 0; i < fn->params.size(); i++) {
+        const auto& paramName = fn->params[i];
+        if (i < positionalArgs.size()) {
+            callEnv->define(paramName, positionalArgs[i]);
+        } else if (namedArgs.count(paramName)) {
+            callEnv->define(paramName, namedArgs.at(paramName));
+        } else if (fn->defaults.count(paramName)) {
+            callEnv->define(paramName, fn->defaults.at(paramName));
+        } else {
+            throw EvalError("missing argument '" + paramName + "' in call to " + fn->name);
+        }
+    }
+
+    auto prevEnv = env_;
+    env_ = callEnv;
+
+    ValuePtr result = Value::makeNil();
+    try {
+        visit(fn->body);
+    } catch (const ReturnValue& rv) {
+        result = rv.value;
+    }
+
+    env_ = prevEnv;
+    return result;
+}
+
+// --- For loop init/update helpers ---
+
+antlrcpp::Any Evaluator::visitForInitLet(OpenDCADParser::ForInitLetContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr value = toValue(visit(ctx->expr()));
+    env_->define(name, value);
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitForInitAssign(OpenDCADParser::ForInitAssignContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr value = toValue(visit(ctx->expr()));
+    env_->assign(name, value);
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitForUpdateAssign(OpenDCADParser::ForUpdateAssignContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr value = toValue(visit(ctx->expr()));
+    env_->assign(name, value);
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitForUpdateCompound(OpenDCADParser::ForUpdateCompoundContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    ValuePtr current = env_->lookup(name);
+    ValuePtr rhs = toValue(visit(ctx->expr()));
+    ValuePtr result;
+
+    if (ctx->PLUS_EQ()) result = current->add(rhs);
+    else if (ctx->MINUS_EQ()) result = current->subtract(rhs);
+    else if (ctx->STAR_EQ()) result = current->multiply(rhs);
+    else if (ctx->SLASH_EQ()) result = current->divide(rhs);
+
+    env_->assign(name, result);
+    return Value::makeNil();
+}
+
+antlrcpp::Any Evaluator::visitForUpdateIncr(OpenDCADParser::ForUpdateIncrContext* ctx) {
+    std::string name = ctx->IDENT()->getText();
+    double val = env_->lookup(name)->asNumber();
+    if (ctx->INCR())
+        env_->assign(name, Value::makeNumber(val + 1));
+    else
+        env_->assign(name, Value::makeNumber(val - 1));
+    return Value::makeNil();
+}
+
+// --- Chains & Calls ---
+
 antlrcpp::Any Evaluator::visitChainExpr(OpenDCADParser::ChainExprContext* ctx) {
     return visit(ctx->postfix());
 }
 
 antlrcpp::Any Evaluator::visitPostFromCall(OpenDCADParser::PostFromCallContext* ctx) {
     auto* callCtx = ctx->c;
-    std::string factoryName = callCtx->IDENT()->getText();
-    auto args = evaluateArgs(callCtx->argList());
+    std::string name = callCtx->IDENT()->getText();
 
-    ShapePtr shape;
-    try {
-        shape = ShapeRegistry::instance().callFactory(factoryName, args);
-    } catch (const EvalError& e) {
-        throw EvalError(std::string(e.what()), locFrom(callCtx));
-    } catch (const GeometryError& e) {
-        throw EvalError(std::string(e.what()), locFrom(callCtx));
+    // Evaluate args (positional + named)
+    std::vector<ValuePtr> positionalArgs;
+    std::unordered_map<std::string, ValuePtr> namedArgs;
+    if (callCtx->argList()) {
+        for (auto* argCtx : callCtx->argList()->arg()) {
+            if (auto* na = dynamic_cast<OpenDCADParser::NamedArgContext*>(argCtx)) {
+                std::string argName = na->IDENT()->getText();
+                namedArgs[argName] = toValue(visit(na->expr()));
+            } else if (auto* pa = dynamic_cast<OpenDCADParser::PositionalArgContext*>(argCtx)) {
+                positionalArgs.push_back(toValue(visit(pa->expr())));
+            }
+        }
     }
 
-    ValuePtr current = Value::makeShape(shape);
+    ValuePtr current;
+
+    // 1. Check builtins
+    auto bit = builtins_.find(name);
+    if (bit != builtins_.end()) {
+        try {
+            current = bit->second(positionalArgs);
+        } catch (const EvalError& e) {
+            throw EvalError(std::string(e.what()), locFrom(callCtx));
+        }
+    }
+    // 2. Check user-defined functions
+    else if (env_->has(name)) {
+        ValuePtr fnVal;
+        try { fnVal = env_->lookup(name); } catch (...) {}
+        if (fnVal && fnVal->type() == ValueType::FUNCTION) {
+            try {
+                current = callFunction(fnVal->asFunction(), positionalArgs, namedArgs);
+            } catch (const EvalError& e) {
+                throw EvalError(std::string(e.what()), locFrom(callCtx));
+            }
+        } else {
+            throw EvalError("'" + name + "' is not callable", locFrom(callCtx));
+        }
+    }
+    // 3. Check shape factories
+    else if (ShapeRegistry::instance().hasFactory(name)) {
+        try {
+            current = Value::makeShape(
+                ShapeRegistry::instance().callFactory(name, positionalArgs));
+        } catch (const EvalError& e) {
+            throw EvalError(std::string(e.what()), locFrom(callCtx));
+        } catch (const GeometryError& e) {
+            throw EvalError(std::string(e.what()), locFrom(callCtx));
+        }
+    }
+    else {
+        throw EvalError("unknown function '" + name + "'", locFrom(callCtx));
+    }
+
     return applyMethodChain(current, ctx->methodCall());
 }
 
@@ -160,6 +553,48 @@ antlrcpp::Any Evaluator::visitPostFromVar(OpenDCADParser::PostFromVarContext* ct
         throw EvalError("undefined variable '" + varName + "'", locFrom(ctx));
     }
     return applyMethodChain(current, ctx->methodCall());
+}
+
+// --- Expressions ---
+
+antlrcpp::Any Evaluator::visitLogicalOr(OpenDCADParser::LogicalOrContext* ctx) {
+    ValuePtr left = toValue(visit(ctx->expr(0)));
+    if (left->isTruthy()) return left;
+    return toValue(visit(ctx->expr(1)));
+}
+
+antlrcpp::Any Evaluator::visitLogicalAnd(OpenDCADParser::LogicalAndContext* ctx) {
+    ValuePtr left = toValue(visit(ctx->expr(0)));
+    if (!left->isTruthy()) return left;
+    return toValue(visit(ctx->expr(1)));
+}
+
+antlrcpp::Any Evaluator::visitEquality(OpenDCADParser::EqualityContext* ctx) {
+    ValuePtr left = toValue(visit(ctx->expr(0)));
+    ValuePtr right = toValue(visit(ctx->expr(1)));
+    std::string op = ctx->children[1]->getText();
+    try {
+        if (op == "==") return left->equal(right);
+        if (op == "!=") return left->notEqual(right);
+    } catch (const EvalError& e) {
+        throw EvalError(std::string(e.what()), locFrom(ctx));
+    }
+    throw EvalError("unknown equality operator '" + op + "'", locFrom(ctx));
+}
+
+antlrcpp::Any Evaluator::visitComparison(OpenDCADParser::ComparisonContext* ctx) {
+    ValuePtr left = toValue(visit(ctx->expr(0)));
+    ValuePtr right = toValue(visit(ctx->expr(1)));
+    std::string op = ctx->children[1]->getText();
+    try {
+        if (op == "<") return left->lessThan(right);
+        if (op == ">") return left->greaterThan(right);
+        if (op == "<=") return left->lessEqual(right);
+        if (op == ">=") return left->greaterEqual(right);
+    } catch (const EvalError& e) {
+        throw EvalError(std::string(e.what()), locFrom(ctx));
+    }
+    throw EvalError("unknown comparison operator '" + op + "'", locFrom(ctx));
 }
 
 antlrcpp::Any Evaluator::visitMulDivMod(OpenDCADParser::MulDivModContext* ctx) {
@@ -191,6 +626,11 @@ antlrcpp::Any Evaluator::visitAddSub(OpenDCADParser::AddSubContext* ctx) {
     throw EvalError("unknown operator '" + op + "'", locFrom(ctx));
 }
 
+antlrcpp::Any Evaluator::visitLogicalNot(OpenDCADParser::LogicalNotContext* ctx) {
+    ValuePtr val = toValue(visit(ctx->expr()));
+    return val->logicalNot();
+}
+
 antlrcpp::Any Evaluator::visitUnaryNeg(OpenDCADParser::UnaryNegContext* ctx) {
     ValuePtr val = toValue(visit(ctx->expr()));
     try {
@@ -198,6 +638,23 @@ antlrcpp::Any Evaluator::visitUnaryNeg(OpenDCADParser::UnaryNegContext* ctx) {
     } catch (const EvalError& e) {
         throw EvalError(std::string(e.what()), locFrom(ctx));
     }
+}
+
+antlrcpp::Any Evaluator::visitIndexAccess(OpenDCADParser::IndexAccessContext* ctx) {
+    ValuePtr collection = toValue(visit(ctx->expr(0)));
+    ValuePtr indexVal = toValue(visit(ctx->expr(1)));
+    int index = static_cast<int>(indexVal->asNumber());
+
+    if (collection->type() == ValueType::LIST) {
+        return collection->listGet(index);
+    }
+    if (collection->type() == ValueType::VECTOR) {
+        const auto& vec = collection->asVector();
+        if (index < 0 || index >= static_cast<int>(vec.size()))
+            throw EvalError("vector index out of bounds", locFrom(ctx));
+        return Value::makeNumber(vec[index]);
+    }
+    throw EvalError("indexing not supported on " + collection->typeName(), locFrom(ctx));
 }
 
 antlrcpp::Any Evaluator::visitPrimaryExpr(OpenDCADParser::PrimaryExprContext* ctx) {
@@ -210,9 +667,20 @@ antlrcpp::Any Evaluator::visitPrimary(OpenDCADParser::PrimaryContext* ctx) {
     }
     if (ctx->STRING()) {
         std::string raw = ctx->STRING()->getText();
-        // Strip surrounding quotes
         std::string content = raw.substr(1, raw.size() - 2);
         return ValuePtr(Value::makeString(content));
+    }
+    if (ctx->TRUE()) {
+        return ValuePtr(Value::makeBool(true));
+    }
+    if (ctx->FALSE()) {
+        return ValuePtr(Value::makeBool(false));
+    }
+    if (ctx->NIL_LIT()) {
+        return ValuePtr(Value::makeNil());
+    }
+    if (ctx->listLiteral()) {
+        return visit(ctx->listLiteral());
     }
     if (ctx->vectorLiteral()) {
         return visit(ctx->vectorLiteral());
@@ -246,6 +714,14 @@ antlrcpp::Any Evaluator::visitVectorLiteral(OpenDCADParser::VectorLiteralContext
         }
     }
     return ValuePtr(Value::makeVector(components));
+}
+
+antlrcpp::Any Evaluator::visitListLiteral(OpenDCADParser::ListLiteralContext* ctx) {
+    std::vector<ValuePtr> elements;
+    for (auto* expr : ctx->expr()) {
+        elements.push_back(toValue(visit(expr)));
+    }
+    return ValuePtr(Value::makeList(elements));
 }
 
 } // namespace opendcad
