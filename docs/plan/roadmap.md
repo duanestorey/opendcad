@@ -56,7 +56,48 @@ default/named args, `return`, closures, `import`, color/material types, built-in
 - When shapes have `.color()` metadata, embed it in STEP output
 - This makes imported STEP files render correctly in FreeCAD/Fusion360
 
-**Files:** `src/main.cpp`, `src/export/StepExporter.cpp`, `src/export/StlExporter.cpp`
+### 9.4 Project System (`opendcad.yaml`)
+A built-in project/build system so users don't need external Make/CMake tooling.
+
+- `opendcad init` — scaffolds a new project:
+  ```
+  my-project/
+    opendcad.yaml
+    src/
+      main.dcad
+    lib/
+    build/
+  ```
+- `opendcad.yaml` — simple project config:
+  ```yaml
+  project:
+    name: electronics-enclosure
+    version: 1.0
+
+  builds:
+    - source: src/enclosure.dcad
+      format: [step, stl]
+      quality: production
+      dfm: fdm
+
+    - source: src/enclosure.dcad
+      export: lid
+      format: [stl]
+      quality: draft
+
+    - source: src/mounting_plate.dcad
+      format: [step]
+  ```
+- `opendcad build` — finds `opendcad.yaml` in current dir (or walks up), builds all targets
+- `opendcad build --target lid` — build a specific target
+- `opendcad build --quality draft` — override quality for all targets
+- `opendcad watch` — watch source files and rebuild on change
+- `opendcad clean` — remove build outputs
+- YAML chosen for simplicity — no learning curve, every developer knows it
+- Cross-platform by definition (runs wherever OpenDCAD runs, no Make/CMake dependency)
+
+**Files:** `src/main.cpp`, `src/export/StepExporter.cpp`, `src/export/StlExporter.cpp`, new `src/project/ProjectConfig.h/.cpp`
+**Dependencies:** yaml-cpp or a lightweight YAML parser
 
 ---
 
