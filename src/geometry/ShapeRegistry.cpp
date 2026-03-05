@@ -159,6 +159,18 @@ void ShapeRegistry::registerDefaults() {
         return Shape::createLoft(profiles);
     });
 
+    registerFactory("import_step", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 1)
+            throw EvalError("import_step() requires 1 argument (path), got " + std::to_string(args.size()));
+        return Shape::importSTEP(args[0]->asString());
+    });
+
+    registerFactory("import_stl", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 1)
+            throw EvalError("import_stl() requires 1 argument (path), got " + std::to_string(args.size()));
+        return Shape::importSTL(args[0]->asString());
+    });
+
     // =========================================================================
     // Methods
     // =========================================================================
@@ -503,6 +515,34 @@ void ShapeRegistry::registerDefaults() {
             return Value::makeNumber(self->asFaceSelector()->count());
         });
 
+    registerTypedMethod(ValueType::FACE_SELECTOR, "nearestTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            const auto& v = args.at(0)->asVector();
+            if (v.size() < 3)
+                throw EvalError("nearestTo() requires a 3-component vector");
+            return Value::makeFaceRef(self->asFaceSelector()->nearestTo(gp_Pnt(v[0], v[1], v[2])));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "farthestFrom",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            const auto& v = args.at(0)->asVector();
+            if (v.size() < 3)
+                throw EvalError("farthestFrom() requires a 3-component vector");
+            return Value::makeFaceRef(self->asFaceSelector()->farthestFrom(gp_Pnt(v[0], v[1], v[2])));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "areaGreaterThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double minArea = requireNumber(args, 0, "areaGreaterThan");
+            return Value::makeFaceSelector(self->asFaceSelector()->areaGreaterThan(minArea));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "areaLessThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double maxArea = requireNumber(args, 0, "areaLessThan");
+            return Value::makeFaceSelector(self->asFaceSelector()->areaLessThan(maxArea));
+        });
+
     // =========================================================================
     // Typed Methods — WORKPLANE
     // =========================================================================
@@ -728,6 +768,35 @@ void ShapeRegistry::registerDefaults() {
     registerTypedMethod(ValueType::EDGE_SELECTOR, "count",
         [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
             return Value::makeNumber(self->asEdgeSelector()->count());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "longest",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asEdgeSelector()->longest());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "shortest",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asEdgeSelector()->shortest());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "longerThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double minLen = requireNumber(args, 0, "longerThan");
+            return Value::makeEdgeSelector(self->asEdgeSelector()->longerThan(minLen));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "shorterThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double maxLen = requireNumber(args, 0, "shorterThan");
+            return Value::makeEdgeSelector(self->asEdgeSelector()->shorterThan(maxLen));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "ofFace",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::FACE_REF)
+                throw EvalError("ofFace() requires a face reference argument");
+            return Value::makeEdgeSelector(self->asEdgeSelector()->ofFace(args[0]->asFaceRef()));
         });
 }
 

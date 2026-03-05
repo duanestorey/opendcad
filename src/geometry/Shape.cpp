@@ -32,6 +32,8 @@
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <GeomAbs_SurfaceType.hxx>
+#include <STEPControl_Reader.hxx>
+#include <StlAPI_Reader.hxx>
 #include <TopoDS.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -186,6 +188,36 @@ ShapePtr Shape::createLoft( const std::vector<ShapePtr>& profiles, bool solid, b
         throw GeometryError("loft operation failed");
 
     return std::make_shared<Shape>( loft.Shape() );
+}
+
+// =============================================================================
+// External Import
+// =============================================================================
+
+ShapePtr Shape::importSTEP(const std::string& filePath) {
+    STEPControl_Reader reader;
+    IFSelect_ReturnStatus status = reader.ReadFile(filePath.c_str());
+    if (status != IFSelect_RetDone)
+        throw GeometryError("importSTEP: failed to read '" + filePath + "'");
+
+    reader.TransferRoots();
+    TopoDS_Shape shape = reader.OneShape();
+    if (shape.IsNull())
+        throw GeometryError("importSTEP: no geometry found in '" + filePath + "'");
+
+    return std::make_shared<Shape>(shape);
+}
+
+ShapePtr Shape::importSTL(const std::string& filePath) {
+    StlAPI_Reader reader;
+    TopoDS_Shape shape;
+    if (!reader.Read(shape, filePath.c_str()))
+        throw GeometryError("importSTL: failed to read '" + filePath + "'");
+
+    if (shape.IsNull())
+        throw GeometryError("importSTL: no geometry found in '" + filePath + "'");
+
+    return std::make_shared<Shape>(shape);
 }
 
 // =============================================================================

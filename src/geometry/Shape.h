@@ -42,6 +42,10 @@ public:
     // --- Multi-Shape Factory ---
     static ShapePtr createLoft( const std::vector<ShapePtr>& profiles, bool solid = true, bool ruled = false );
 
+    // --- External Import ---
+    static ShapePtr importSTEP(const std::string& filePath);
+    static ShapePtr importSTL(const std::string& filePath);
+
     TopoDS_Shape getShape() const { return mShape; }
 
     // --- Boolean Operations ---

@@ -28,6 +28,14 @@ public:
     FaceRefPtr largest() const;
     FaceRefPtr smallest() const;
 
+    // Distance selectors
+    FaceRefPtr nearestTo(const gp_Pnt& point) const;
+    FaceRefPtr farthestFrom(const gp_Pnt& point) const;
+
+    // Area filter selectors
+    FaceSelectorPtr areaGreaterThan(double minArea) const;
+    FaceSelectorPtr areaLessThan(double maxArea) const;
+
     // Index
     FaceRefPtr byIndex(int index) const;
 

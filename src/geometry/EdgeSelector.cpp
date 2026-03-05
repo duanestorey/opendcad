@@ -1,8 +1,11 @@
 #include "EdgeSelector.h"
+#include "FaceRef.h"
 #include "Shape.h"
 #include "Error.h"
 
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <TopExp.hxx>
@@ -80,6 +83,79 @@ EdgeSelectorPtr EdgeSelector::vertical() const {
 
 EdgeSelectorPtr EdgeSelector::horizontal() const {
     return perpendicularTo(gp::DZ());
+}
+
+static double edgeLength(const TopoDS_Edge& edge) {
+    GProp_GProps props;
+    BRepGProp::LinearProperties(edge, props);
+    return props.Mass();
+}
+
+EdgeSelectorPtr EdgeSelector::ofFace(FaceRefPtr faceRef) const {
+    // Get edges of the face
+    TopTools_IndexedMapOfShape faceEdgeMap;
+    TopExp::MapShapes(faceRef->face(), TopAbs_EDGE, faceEdgeMap);
+
+    std::vector<TopoDS_Edge> filtered;
+    for (const auto& e : edges_) {
+        for (int i = 1; i <= faceEdgeMap.Extent(); ++i) {
+            if (e.IsSame(faceEdgeMap(i))) {
+                filtered.push_back(e);
+                break;
+            }
+        }
+    }
+    return std::make_shared<EdgeSelector>(parent_, filtered);
+}
+
+EdgeSelectorPtr EdgeSelector::longest() const {
+    if (edges_.empty())
+        throw GeometryError("no edges to select from");
+
+    double bestLen = -1.0;
+    int bestIdx = 0;
+    for (size_t i = 0; i < edges_.size(); ++i) {
+        double len = edgeLength(edges_[i]);
+        if (len > bestLen) {
+            bestLen = len;
+            bestIdx = static_cast<int>(i);
+        }
+    }
+    return std::make_shared<EdgeSelector>(parent_, std::vector<TopoDS_Edge>{edges_[bestIdx]});
+}
+
+EdgeSelectorPtr EdgeSelector::shortest() const {
+    if (edges_.empty())
+        throw GeometryError("no edges to select from");
+
+    double bestLen = 1e99;
+    int bestIdx = 0;
+    for (size_t i = 0; i < edges_.size(); ++i) {
+        double len = edgeLength(edges_[i]);
+        if (len < bestLen) {
+            bestLen = len;
+            bestIdx = static_cast<int>(i);
+        }
+    }
+    return std::make_shared<EdgeSelector>(parent_, std::vector<TopoDS_Edge>{edges_[bestIdx]});
+}
+
+EdgeSelectorPtr EdgeSelector::longerThan(double minLength) const {
+    std::vector<TopoDS_Edge> filtered;
+    for (const auto& e : edges_) {
+        if (edgeLength(e) > minLength)
+            filtered.push_back(e);
+    }
+    return std::make_shared<EdgeSelector>(parent_, filtered);
+}
+
+EdgeSelectorPtr EdgeSelector::shorterThan(double maxLength) const {
+    std::vector<TopoDS_Edge> filtered;
+    for (const auto& e : edges_) {
+        if (edgeLength(e) < maxLength)
+            filtered.push_back(e);
+    }
+    return std::make_shared<EdgeSelector>(parent_, filtered);
 }
 
 ShapePtr EdgeSelector::fillet(double radius) const {

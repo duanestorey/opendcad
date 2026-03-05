@@ -306,3 +306,169 @@ TEST_F(EvaluatorTest, InvalidFaceSelectorStringThrows) {
         parseAndEvaluate("let x = box(10,10,10).face(\"invalid\");"),
         EvalError);
 }
+
+// =============================================================================
+// Phase 2b — Sketch Enhancements
+// =============================================================================
+
+TEST_F(EvaluatorTest, SlotExtrude) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().slot(20, 8).extrude(5);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, RevolveSketch) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 40, 10).face(\">Z\").draw().circle(2, 0, 12).revolve(360);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, Fillet2DSketch) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().rect(20, 15).fillet2D(2).extrude(5);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, Chamfer2DSketch) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().rect(20, 15).chamfer2D(2).extrude(5);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, OffsetSketch) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").draw().rect(10, 10).offset(2).extrude(5);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+// =============================================================================
+// Phase 2b — Parametric Holes
+// =============================================================================
+
+TEST_F(EvaluatorTest, HoleBlind) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").hole(6, 5);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, ThroughHole) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 10).face(\">Z\").throughHole(6);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, Counterbore) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 20).face(\">Z\").counterbore(5, 10, 3, 15);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, Countersink) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(40, 30, 20).face(\">Z\").countersink(5, 10, 90, 15);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+// =============================================================================
+// Phase 2b — Feature Patterns
+// =============================================================================
+
+TEST_F(EvaluatorTest, LinearPattern) {
+    auto evaluator = parseAndEvaluate(
+        "let r = cylinder(3, 20).linearPattern([15, 0, 0], 4);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, CircularPattern) {
+    auto evaluator = parseAndEvaluate(
+        "let post = box(5, 5, 20).translate([15, 0, 0]);\n"
+        "let r = post.circularPattern([0, 0, 1], 4);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, MirrorFeature) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(10, 10, 10).translate([20, 0, 0]).mirrorFeature([1, 0, 0]);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+// =============================================================================
+// Phase 2b — Advanced Operations
+// =============================================================================
+
+TEST_F(EvaluatorTest, Draft) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(20, 20, 30).draft(5, [0, 0, 1]);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+TEST_F(EvaluatorTest, SplitAt) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(20, 20, 20).splitAt([0, 0, 0], [1, 0, 0]);");
+    auto val = evaluator.environment()->lookup("r");
+    EXPECT_TRUE(val->asShape()->isValid());
+}
+
+// =============================================================================
+// Phase 2b — Advanced Selection
+// =============================================================================
+
+TEST_F(EvaluatorTest, NearestToFace) {
+    auto evaluator = parseAndEvaluate(
+        "let f = box(20, 20, 20).faces().nearestTo([0, 0, 100]);\n"
+        "let n = f.normal();");
+    auto val = evaluator.environment()->lookup("n");
+    EXPECT_EQ(val->type(), ValueType::VECTOR);
+    EXPECT_NEAR(val->asVector()[2], 1.0, 0.01);
+}
+
+TEST_F(EvaluatorTest, FarthestFromFace) {
+    auto evaluator = parseAndEvaluate(
+        "let f = box(20, 20, 20).faces().farthestFrom([0, 0, -100]);\n"
+        "let n = f.normal();");
+    auto val = evaluator.environment()->lookup("n");
+    EXPECT_EQ(val->type(), ValueType::VECTOR);
+    EXPECT_NEAR(val->asVector()[2], 1.0, 0.01);
+}
+
+TEST_F(EvaluatorTest, LongestEdge) {
+    auto evaluator = parseAndEvaluate(
+        "let n = box(40, 30, 10).edges().longest().count();");
+    auto val = evaluator.environment()->lookup("n");
+    EXPECT_DOUBLE_EQ(val->asNumber(), 1.0);
+}
+
+TEST_F(EvaluatorTest, ShortestEdge) {
+    auto evaluator = parseAndEvaluate(
+        "let n = box(40, 30, 10).edges().shortest().count();");
+    auto val = evaluator.environment()->lookup("n");
+    EXPECT_DOUBLE_EQ(val->asNumber(), 1.0);
+}
+
+TEST_F(EvaluatorTest, AreaFilters) {
+    auto evaluator = parseAndEvaluate(
+        "let big = box(40, 30, 10).faces().areaGreaterThan(500).count();\n"
+        "let small = box(40, 30, 10).faces().areaLessThan(350).count();");
+    EXPECT_DOUBLE_EQ(evaluator.environment()->lookup("big")->asNumber(), 2.0);
+    EXPECT_DOUBLE_EQ(evaluator.environment()->lookup("small")->asNumber(), 2.0);
+}
+
+TEST_F(EvaluatorTest, ZeroCountPatternNoOp) {
+    auto evaluator = parseAndEvaluate(
+        "let r = box(10, 10, 10).linearPattern([10, 0, 0], 1);\n"
+        "let n = r.faces().count();");
+    EXPECT_DOUBLE_EQ(evaluator.environment()->lookup("n")->asNumber(), 6.0);
+}

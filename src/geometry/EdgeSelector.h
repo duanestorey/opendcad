@@ -3,6 +3,7 @@
 #include "Value.h"
 #include <vector>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
 #include <gp_Dir.hxx>
 
 namespace opendcad {
@@ -17,6 +18,13 @@ public:
     EdgeSelectorPtr perpendicularTo(const gp_Dir& dir) const;
     EdgeSelectorPtr vertical() const;
     EdgeSelectorPtr horizontal() const;
+
+    // Additional filter selectors
+    EdgeSelectorPtr ofFace(FaceRefPtr faceRef) const;
+    EdgeSelectorPtr longest() const;
+    EdgeSelectorPtr shortest() const;
+    EdgeSelectorPtr longerThan(double minLength) const;
+    EdgeSelectorPtr shorterThan(double maxLength) const;
 
     // Operations on selected edges
     ShapePtr fillet(double radius) const;

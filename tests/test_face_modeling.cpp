@@ -7,6 +7,9 @@
 #include "EdgeSelector.h"
 #include "Error.h"
 #include <cmath>
+#include <STEPControl_Writer.hxx>
+#include <StlAPI_Writer.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
 
 using namespace opendcad;
 
@@ -554,4 +557,113 @@ TEST(ShapeTest, SplitAtReturnsValid) {
     auto cyl = Shape::createCylinder(10, 30);
     auto half = cyl->splitAt(0, 0, 15, 0, 0, 1);
     EXPECT_TRUE(half->isValid());
+}
+
+// =============================================================================
+// Advanced Face Selection Tests
+// =============================================================================
+
+TEST(FaceSelectorTest, NearestToCorner) {
+    auto box = Shape::createBox(20, 20, 20);
+    // Point near the top → should select top face
+    auto face = box->faces()->nearestTo(gp_Pnt(0, 0, 100));
+    gp_Dir n = face->normal();
+    EXPECT_NEAR(n.Z(), 1.0, 0.01);
+}
+
+TEST(FaceSelectorTest, FarthestFromOrigin) {
+    auto box = Shape::createBox(20, 20, 20);
+    // Farthest from a point far below → top face
+    auto face = box->faces()->farthestFrom(gp_Pnt(0, 0, -100));
+    gp_Dir n = face->normal();
+    EXPECT_NEAR(n.Z(), 1.0, 0.01);
+}
+
+TEST(FaceSelectorTest, AreaGreaterThan) {
+    auto box = Shape::createBox(40, 30, 10);
+    // Top/bottom faces = 1200, side faces = 400 and 300
+    auto bigFaces = box->faces()->areaGreaterThan(500);
+    EXPECT_EQ(bigFaces->count(), 2); // top + bottom
+}
+
+TEST(FaceSelectorTest, AreaLessThan) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto smallFaces = box->faces()->areaLessThan(350);
+    EXPECT_EQ(smallFaces->count(), 2); // the 2 narrow side faces (30*10=300)
+}
+
+// =============================================================================
+// Advanced Edge Selection Tests
+// =============================================================================
+
+TEST(EdgeSelectorTest, OfFaceTopEdges) {
+    auto box = Shape::createBox(10, 10, 10);
+    auto topFace = box->face(">Z");
+    auto topEdges = box->edges()->ofFace(topFace);
+    EXPECT_EQ(topEdges->count(), 4);
+}
+
+TEST(EdgeSelectorTest, LongestEdge) {
+    auto box = Shape::createBox(40, 10, 10);
+    auto longest = box->edges()->longest();
+    EXPECT_EQ(longest->count(), 1);
+}
+
+TEST(EdgeSelectorTest, ShortestEdge) {
+    auto box = Shape::createBox(40, 30, 10);
+    auto shortest = box->edges()->shortest();
+    EXPECT_EQ(shortest->count(), 1);
+}
+
+TEST(EdgeSelectorTest, LongerThan) {
+    auto box = Shape::createBox(40, 30, 10);
+    // Edges: 4x40, 4x30, 4x10 → longerThan(35) = 4 edges of length 40
+    auto longEdges = box->edges()->longerThan(35);
+    EXPECT_EQ(longEdges->count(), 4);
+}
+
+TEST(EdgeSelectorTest, ShorterThan) {
+    auto box = Shape::createBox(40, 30, 10);
+    // shorterThan(15) = 4 edges of length 10
+    auto shortEdges = box->edges()->shorterThan(15);
+    EXPECT_EQ(shortEdges->count(), 4);
+}
+
+// =============================================================================
+// Import Tests
+// =============================================================================
+
+TEST(ShapeTest, ImportSTEPRoundTrip) {
+    // Programmatically create a test STEP file, then import it
+    auto box = Shape::createBox(10, 10, 10);
+    // Write STEP
+    std::string path = "/tmp/opendcad_test_import.step";
+    // Use STEPControl_Writer to create test file
+    STEPControl_Writer writer;
+    writer.Transfer(box->getShape(), STEPControl_AsIs);
+    writer.Write(path.c_str());
+
+    auto imported = Shape::importSTEP(path);
+    EXPECT_TRUE(imported->isValid());
+    EXPECT_EQ(imported->faces()->count(), 6);
+}
+
+TEST(ShapeTest, ImportSTEPInvalidPath) {
+    EXPECT_THROW(Shape::importSTEP("/nonexistent/path.step"), GeometryError);
+}
+
+TEST(ShapeTest, ImportSTLRoundTrip) {
+    auto box = Shape::createBox(10, 10, 10);
+    std::string path = "/tmp/opendcad_test_import.stl";
+    // Mesh the shape before writing STL
+    BRepMesh_IncrementalMesh mesh(box->getShape(), 0.1);
+    StlAPI_Writer writer;
+    writer.Write(box->getShape(), path.c_str());
+
+    auto imported = Shape::importSTL(path);
+    EXPECT_TRUE(imported->isValid());
+}
+
+TEST(ShapeTest, ImportSTLInvalidPath) {
+    EXPECT_THROW(Shape::importSTL("/nonexistent/path.stl"), GeometryError);
 }

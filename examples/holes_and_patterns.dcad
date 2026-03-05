@@ -1,0 +1,17 @@
+let base = box(80, 60, 10);
+
+// Mounting hole pattern (4 corners)
+let h1 = base.face(">Z").throughHole(4, -30, -20);
+let h2 = h1.face(">Z").throughHole(4, 30, -20);
+let h3 = h2.face(">Z").throughHole(4, -30, 20);
+let h4 = h3.face(">Z").throughHole(4, 30, 20);
+
+// Center counterbore
+let h5 = h4.face(">Z").counterbore(5, 10, 3, 8);
+
+// Slot for cable routing
+let withSlot = h5.face(">Z").draw().slot(25, 8).cutThrough();
+
+// Fillet all vertical edges
+let final = withSlot.edges().vertical().fillet(2);
+export final as mounting_plate;

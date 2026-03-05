@@ -1,0 +1,3 @@
+let base = box(40, 40, 10);
+let withBoss = base.face(">Z").draw().circle(2, 0, 12).revolve(360);
+export withBoss as revolve_test;

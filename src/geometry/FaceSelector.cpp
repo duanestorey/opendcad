@@ -117,6 +117,64 @@ FaceSelectorPtr FaceSelector::cylindrical() const {
     return std::make_shared<FaceSelector>(parent_, filtered);
 }
 
+FaceRefPtr FaceSelector::nearestTo(const gp_Pnt& point) const {
+    if (faces_.empty())
+        throw GeometryError("no faces to select from");
+
+    double bestDist = 1e99;
+    int bestIdx = 0;
+    for (size_t i = 0; i < faces_.size(); ++i) {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(faces_[i], props);
+        double dist = props.CentreOfMass().Distance(point);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = static_cast<int>(i);
+        }
+    }
+    return std::make_shared<FaceRef>(parent_, faces_[bestIdx]);
+}
+
+FaceRefPtr FaceSelector::farthestFrom(const gp_Pnt& point) const {
+    if (faces_.empty())
+        throw GeometryError("no faces to select from");
+
+    double bestDist = -1.0;
+    int bestIdx = 0;
+    for (size_t i = 0; i < faces_.size(); ++i) {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(faces_[i], props);
+        double dist = props.CentreOfMass().Distance(point);
+        if (dist > bestDist) {
+            bestDist = dist;
+            bestIdx = static_cast<int>(i);
+        }
+    }
+    return std::make_shared<FaceRef>(parent_, faces_[bestIdx]);
+}
+
+FaceSelectorPtr FaceSelector::areaGreaterThan(double minArea) const {
+    std::vector<TopoDS_Face> filtered;
+    for (const auto& f : faces_) {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(f, props);
+        if (props.Mass() > minArea)
+            filtered.push_back(f);
+    }
+    return std::make_shared<FaceSelector>(parent_, filtered);
+}
+
+FaceSelectorPtr FaceSelector::areaLessThan(double maxArea) const {
+    std::vector<TopoDS_Face> filtered;
+    for (const auto& f : faces_) {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(f, props);
+        if (props.Mass() < maxArea)
+            filtered.push_back(f);
+    }
+    return std::make_shared<FaceSelector>(parent_, filtered);
+}
+
 FaceRefPtr FaceSelector::byIndex(int index) const {
     if (index < 0 || index >= static_cast<int>(faces_.size()))
         throw GeometryError("face index " + std::to_string(index) +
