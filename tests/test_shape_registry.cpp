@@ -50,3 +50,30 @@ TEST_F(ShapeRegistryTest, CallMethodTranslateWithNumbers) {
     auto result = ShapeRegistry::instance().callMethod("translate", shape, args);
     EXPECT_TRUE(result->asShape()->isValid());
 }
+
+// =============================================================================
+// Phase 2 — Typed Method Dispatch
+// =============================================================================
+
+TEST_F(ShapeRegistryTest, RegisterAndCallTypedMethod) {
+    auto& reg = ShapeRegistry::instance();
+    reg.registerTypedMethod(ValueType::NUMBER, "double_it",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeNumber(self->asNumber() * 2);
+        });
+    EXPECT_TRUE(reg.hasTypedMethod(ValueType::NUMBER, "double_it"));
+    EXPECT_FALSE(reg.hasTypedMethod(ValueType::STRING, "double_it"));
+
+    auto result = reg.callTypedMethod(ValueType::NUMBER, "double_it",
+                                      Value::makeNumber(21), {});
+    EXPECT_DOUBLE_EQ(result->asNumber(), 42.0);
+}
+
+TEST_F(ShapeRegistryTest, TypedMethodNotFoundThrows) {
+    auto& reg = ShapeRegistry::instance();
+    EXPECT_FALSE(reg.hasTypedMethod(ValueType::STRING, "nonexistent"));
+    EXPECT_THROW(
+        reg.callTypedMethod(ValueType::STRING, "nonexistent", Value::makeString("x"), {}),
+        EvalError
+    );
+}

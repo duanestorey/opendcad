@@ -1,0 +1,7 @@
+let post = cylinder(3, 20);
+let row = post.linearPattern([15, 0, 0], 4);
+let grid = row.linearPattern([0, 15, 0], 3);
+
+let base = box(60, 45, 5);
+let combined = base.fuse(grid.translate([7.5, 7.5, 5]));
+export combined as pin_grid;

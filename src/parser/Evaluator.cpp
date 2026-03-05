@@ -47,13 +47,24 @@ ValuePtr Evaluator::applyMethodChain(
     ValuePtr current,
     const std::vector<OpenDCADParser::MethodCallContext*>& methods)
 {
+    auto& reg = ShapeRegistry::instance();
+
     for (auto* method : methods) {
         std::string methodName = method->IDENT()->getText();
         auto args = evaluateArgs(method->argList());
 
-        if (current->type() == ValueType::SHAPE && ShapeRegistry::instance().hasMethod(methodName)) {
+        // Try typed methods first (works on any ValueType)
+        if (reg.hasTypedMethod(current->type(), methodName)) {
             try {
-                current = ShapeRegistry::instance().callMethod(methodName, current->asShape(), args);
+                current = reg.callTypedMethod(current->type(), methodName, current, args);
+            } catch (const GeometryError& e) {
+                throw EvalError(std::string(e.what()), locFrom(method));
+            }
+        }
+        // Fallback to legacy SHAPE methods
+        else if (current->type() == ValueType::SHAPE && reg.hasMethod(methodName)) {
+            try {
+                current = reg.callMethod(methodName, current->asShape(), args);
             } catch (const GeometryError& e) {
                 throw EvalError(std::string(e.what()), locFrom(method));
             }

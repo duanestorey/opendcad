@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <string>
 #include <TopoDS_Shape.hxx>
 
 namespace opendcad {
@@ -10,7 +11,16 @@ namespace opendcad {
 class Shape;
 typedef std::shared_ptr<Shape> ShapePtr;
 
-class Shape {
+class FaceRef;
+using FaceRefPtr = std::shared_ptr<FaceRef>;
+
+class FaceSelector;
+using FaceSelectorPtr = std::shared_ptr<FaceSelector>;
+
+class EdgeSelector;
+using EdgeSelectorPtr = std::shared_ptr<EdgeSelector>;
+
+class Shape : public std::enable_shared_from_this<Shape> {
 public:
     Shape( const TopoDS_Shape &shape );
     Shape();
@@ -31,6 +41,10 @@ public:
 
     // --- Multi-Shape Factory ---
     static ShapePtr createLoft( const std::vector<ShapePtr>& profiles, bool solid = true, bool ruled = false );
+
+    // --- External Import ---
+    static ShapePtr importSTEP(const std::string& filePath);
+    static ShapePtr importSTL(const std::string& filePath);
 
     TopoDS_Shape getShape() const { return mShape; }
 
@@ -60,10 +74,26 @@ public:
     // --- Shell ---
     ShapePtr shell( double thickness ) const;
 
+    // --- Feature Patterns ---
+    ShapePtr linearPattern(double dx, double dy, double dz, int count) const;
+    ShapePtr circularPattern(double ax, double ay, double az, int count, double angleDeg = 360.0) const;
+    ShapePtr mirrorFeature(double nx, double ny, double nz) const;
+
+    // --- Advanced Operations ---
+    ShapePtr draft(double angleDeg, double nx, double ny, double nz) const;
+    ShapePtr splitAt(double px, double py, double pz, double nx, double ny, double nz) const;
+
     // --- Axis Shortcuts ---
     ShapePtr x( double x ) { return translate( x, 0, 0 ); }
     ShapePtr y( double y ) { return translate( 0, y, 0 ); }
     ShapePtr z( double z ) { return translate( 0, 0, z ); }
+
+    // --- Face/Edge Selection ---
+    FaceSelectorPtr faces() const;
+    FaceRefPtr face(const std::string& selector) const;
+    FaceRefPtr topFace() const;
+    FaceRefPtr bottomFace() const;
+    EdgeSelectorPtr edges() const;
 
     bool isValid() const { return !mShape.IsNull(); }
 private:

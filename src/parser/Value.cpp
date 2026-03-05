@@ -47,14 +47,54 @@ ValuePtr Value::makeNil() {
     return val;
 }
 
+ValuePtr Value::makeFaceRef(FaceRefPtr v) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::FACE_REF;
+    val->faceRef_ = std::move(v);
+    return val;
+}
+
+ValuePtr Value::makeFaceSelector(FaceSelectorPtr v) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::FACE_SELECTOR;
+    val->faceSelector_ = std::move(v);
+    return val;
+}
+
+ValuePtr Value::makeWorkplane(WorkplanePtr v) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::WORKPLANE;
+    val->workplane_ = std::move(v);
+    return val;
+}
+
+ValuePtr Value::makeSketch(SketchPtr v) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::SKETCH;
+    val->sketch_ = std::move(v);
+    return val;
+}
+
+ValuePtr Value::makeEdgeSelector(EdgeSelectorPtr v) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::EDGE_SELECTOR;
+    val->edgeSelector_ = std::move(v);
+    return val;
+}
+
 std::string Value::typeName() const {
     switch (type_) {
-        case ValueType::NUMBER: return "number";
-        case ValueType::STRING: return "string";
-        case ValueType::BOOL:   return "bool";
-        case ValueType::VECTOR: return "vector";
-        case ValueType::SHAPE:  return "shape";
-        case ValueType::NIL:    return "nil";
+        case ValueType::NUMBER:        return "number";
+        case ValueType::STRING:        return "string";
+        case ValueType::BOOL:          return "bool";
+        case ValueType::VECTOR:        return "vector";
+        case ValueType::SHAPE:         return "shape";
+        case ValueType::NIL:           return "nil";
+        case ValueType::FACE_REF:      return "face_ref";
+        case ValueType::FACE_SELECTOR: return "face_selector";
+        case ValueType::WORKPLANE:     return "workplane";
+        case ValueType::SKETCH:        return "sketch";
+        case ValueType::EDGE_SELECTOR: return "edge_selector";
     }
     return "unknown";
 }
@@ -89,14 +129,49 @@ ShapePtr Value::asShape() const {
     return shape_;
 }
 
+FaceRefPtr Value::asFaceRef() const {
+    if (type_ != ValueType::FACE_REF)
+        throw EvalError("expected face_ref, got " + typeName());
+    return faceRef_;
+}
+
+FaceSelectorPtr Value::asFaceSelector() const {
+    if (type_ != ValueType::FACE_SELECTOR)
+        throw EvalError("expected face_selector, got " + typeName());
+    return faceSelector_;
+}
+
+WorkplanePtr Value::asWorkplane() const {
+    if (type_ != ValueType::WORKPLANE)
+        throw EvalError("expected workplane, got " + typeName());
+    return workplane_;
+}
+
+SketchPtr Value::asSketch() const {
+    if (type_ != ValueType::SKETCH)
+        throw EvalError("expected sketch, got " + typeName());
+    return sketch_;
+}
+
+EdgeSelectorPtr Value::asEdgeSelector() const {
+    if (type_ != ValueType::EDGE_SELECTOR)
+        throw EvalError("expected edge_selector, got " + typeName());
+    return edgeSelector_;
+}
+
 bool Value::isTruthy() const {
     switch (type_) {
-        case ValueType::NIL:    return false;
-        case ValueType::BOOL:   return bool_;
-        case ValueType::NUMBER: return number_ != 0.0;
-        case ValueType::STRING: return !string_.empty();
-        case ValueType::VECTOR: return !vector_.empty();
-        case ValueType::SHAPE:  return shape_ != nullptr;
+        case ValueType::NIL:           return false;
+        case ValueType::BOOL:          return bool_;
+        case ValueType::NUMBER:        return number_ != 0.0;
+        case ValueType::STRING:        return !string_.empty();
+        case ValueType::VECTOR:        return !vector_.empty();
+        case ValueType::SHAPE:         return shape_ != nullptr;
+        case ValueType::FACE_REF:      return faceRef_ != nullptr;
+        case ValueType::FACE_SELECTOR: return faceSelector_ != nullptr;
+        case ValueType::WORKPLANE:     return workplane_ != nullptr;
+        case ValueType::SKETCH:        return sketch_ != nullptr;
+        case ValueType::EDGE_SELECTOR: return edgeSelector_ != nullptr;
     }
     return false;
 }
@@ -206,8 +281,13 @@ std::string Value::toString() const {
             oss << "]";
             return oss.str();
         }
-        case ValueType::SHAPE:  return "<shape>";
-        case ValueType::NIL:    return "nil";
+        case ValueType::SHAPE:         return "<shape>";
+        case ValueType::NIL:           return "nil";
+        case ValueType::FACE_REF:      return "<face_ref>";
+        case ValueType::FACE_SELECTOR: return "<face_selector>";
+        case ValueType::WORKPLANE:     return "<workplane>";
+        case ValueType::SKETCH:        return "<sketch>";
+        case ValueType::EDGE_SELECTOR: return "<edge_selector>";
     }
     return "unknown";
 }

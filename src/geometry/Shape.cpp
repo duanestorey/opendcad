@@ -1,4 +1,7 @@
 #include "Shape.h"
+#include "FaceRef.h"
+#include "FaceSelector.h"
+#include "EdgeSelector.h"
 #include "Error.h"
 
 // Existing includes
@@ -25,6 +28,12 @@
 #include <BRepOffsetAPI_MakePipe.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepOffsetAPI_DraftAngle.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <GeomAbs_SurfaceType.hxx>
+#include <STEPControl_Reader.hxx>
+#include <StlAPI_Reader.hxx>
 #include <TopoDS.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -58,40 +67,40 @@ Shape::Shape() {}
 
 ShapePtr Shape::createBox( double width, double depth, double height ) {
     gp_Pnt point( -width/2, -depth/2, 0 );
-    return ShapePtr( new Shape( BRepPrimAPI_MakeBox( point, width, depth, height ).Shape() ) );
+    return std::make_shared<Shape>( BRepPrimAPI_MakeBox( point, width, depth, height ).Shape() );
 }
 
 ShapePtr Shape::createBin( double width, double depth, double height, double thickness ) {
     gp_Pnt point( -width/2, -depth/2, 0 );
     gp_Pnt point2( -( width - 2*thickness )/2, -(depth - 2*thickness)/2, thickness );
 
-    ShapePtr box = ShapePtr( new Shape( BRepPrimAPI_MakeBox( point, width, depth, height ).Shape() ) );
-    ShapePtr box2 = ShapePtr( new Shape( BRepPrimAPI_MakeBox( point2, width - 2*thickness, depth - 2*thickness, height - thickness ).Shape() ) );
+    ShapePtr box = std::make_shared<Shape>( BRepPrimAPI_MakeBox( point, width, depth, height ).Shape() );
+    ShapePtr box2 = std::make_shared<Shape>( BRepPrimAPI_MakeBox( point2, width - 2*thickness, depth - 2*thickness, height - thickness ).Shape() );
 
     return box->cut( box2 );
 }
 
 ShapePtr Shape::createCylinder( double radius, double height ) {
     gp_Ax2 ax(gp_Pnt(0,0,0), gp::DZ(), gp::DX());
-    return ShapePtr( new Shape( BRepPrimAPI_MakeCylinder(ax, radius, height ).Shape() ) );
+    return std::make_shared<Shape>( BRepPrimAPI_MakeCylinder(ax, radius, height ).Shape() );
 }
 
 ShapePtr Shape::createTorus( double r1, double r2, double angle ) {
     gp_Ax2 ax(gp_Pnt(0,0,0), gp::DZ(), gp::DX());
     if (angle > 0 && angle < 360.0) {
         double angleRad = angle * M_PI / 180.0;
-        return ShapePtr( new Shape( BRepPrimAPI_MakeTorus( ax, r1, r2, angleRad ).Shape() ) );
+        return std::make_shared<Shape>( BRepPrimAPI_MakeTorus( ax, r1, r2, angleRad ).Shape() );
     }
-    return ShapePtr( new Shape( BRepPrimAPI_MakeTorus( ax, r1, r2 ).Shape() ) );
+    return std::make_shared<Shape>( BRepPrimAPI_MakeTorus( ax, r1, r2 ).Shape() );
 }
 
 ShapePtr Shape::createSphere( double radius ) {
-    return ShapePtr( new Shape( BRepPrimAPI_MakeSphere( radius ).Shape() ) );
+    return std::make_shared<Shape>( BRepPrimAPI_MakeSphere( radius ).Shape() );
 }
 
 ShapePtr Shape::createCone( double r1, double r2, double height ) {
     gp_Ax2 ax(gp_Pnt(0,0,0), gp::DZ(), gp::DX());
-    return ShapePtr( new Shape( BRepPrimAPI_MakeCone( ax, r1, r2, height ).Shape() ) );
+    return std::make_shared<Shape>( BRepPrimAPI_MakeCone( ax, r1, r2, height ).Shape() );
 }
 
 ShapePtr Shape::createWedge( double dx, double dy, double dz, double ltx ) {
@@ -106,7 +115,7 @@ ShapePtr Shape::createWedge( double dx, double dy, double dz, double ltx ) {
     rot.SetRotation(gp::OX(), -M_PI / 2.0);
     TopoDS_Shape rotated = BRepBuilderAPI_Transform(mk.Shape(), rot, true).Shape();
 
-    return ShapePtr( new Shape( rotated ) );
+    return std::make_shared<Shape>( rotated );
 }
 
 // =============================================================================
@@ -118,7 +127,7 @@ ShapePtr Shape::createCircle( double radius ) {
     TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(circ);
     TopoDS_Wire wire = BRepBuilderAPI_MakeWire(edge);
     TopoDS_Face face = BRepBuilderAPI_MakeFace(wire);
-    return ShapePtr( new Shape( face ) );
+    return std::make_shared<Shape>( face );
 }
 
 ShapePtr Shape::createRectangle( double width, double height ) {
@@ -135,7 +144,7 @@ ShapePtr Shape::createRectangle( double width, double height ) {
     poly.Close();
 
     TopoDS_Face face = BRepBuilderAPI_MakeFace(poly.Wire());
-    return ShapePtr( new Shape( face ) );
+    return std::make_shared<Shape>( face );
 }
 
 ShapePtr Shape::createPolygon( const std::vector<std::pair<double,double>>& pts ) {
@@ -152,7 +161,7 @@ ShapePtr Shape::createPolygon( const std::vector<std::pair<double,double>>& pts 
         throw GeometryError("polygon wire creation failed");
 
     TopoDS_Face face = BRepBuilderAPI_MakeFace(poly.Wire());
-    return ShapePtr( new Shape( face ) );
+    return std::make_shared<Shape>( face );
 }
 
 // =============================================================================
@@ -178,7 +187,37 @@ ShapePtr Shape::createLoft( const std::vector<ShapePtr>& profiles, bool solid, b
     if (!loft.IsDone())
         throw GeometryError("loft operation failed");
 
-    return ShapePtr( new Shape( loft.Shape() ) );
+    return std::make_shared<Shape>( loft.Shape() );
+}
+
+// =============================================================================
+// External Import
+// =============================================================================
+
+ShapePtr Shape::importSTEP(const std::string& filePath) {
+    STEPControl_Reader reader;
+    IFSelect_ReturnStatus status = reader.ReadFile(filePath.c_str());
+    if (status != IFSelect_RetDone)
+        throw GeometryError("importSTEP: failed to read '" + filePath + "'");
+
+    reader.TransferRoots();
+    TopoDS_Shape shape = reader.OneShape();
+    if (shape.IsNull())
+        throw GeometryError("importSTEP: no geometry found in '" + filePath + "'");
+
+    return std::make_shared<Shape>(shape);
+}
+
+ShapePtr Shape::importSTL(const std::string& filePath) {
+    StlAPI_Reader reader;
+    TopoDS_Shape shape;
+    if (!reader.Read(shape, filePath.c_str()))
+        throw GeometryError("importSTL: failed to read '" + filePath + "'");
+
+    if (shape.IsNull())
+        throw GeometryError("importSTL: no geometry found in '" + filePath + "'");
+
+    return std::make_shared<Shape>(shape);
 }
 
 // =============================================================================
@@ -192,7 +231,7 @@ ShapePtr Shape::fuse( const ShapePtr &part ) {
     fuse.Build();
     if (!fuse.IsDone())
         throw GeometryError("fuse operation failed");
-    return ShapePtr( new Shape( fuse.Shape() ) );
+    return std::make_shared<Shape>( fuse.Shape() );
 }
 
 ShapePtr Shape::cut( const ShapePtr &part ) {
@@ -202,7 +241,7 @@ ShapePtr Shape::cut( const ShapePtr &part ) {
     cut.Build();
     if (!cut.IsDone())
         throw GeometryError("cut operation failed");
-    return ShapePtr( new Shape( cut.Shape() ) );
+    return std::make_shared<Shape>( cut.Shape() );
 }
 
 ShapePtr Shape::intersect( const ShapePtr &part ) const {
@@ -212,7 +251,7 @@ ShapePtr Shape::intersect( const ShapePtr &part ) const {
     common.Build();
     if (!common.IsDone())
         throw GeometryError("intersect operation failed");
-    return ShapePtr( new Shape( common.Shape() ) );
+    return std::make_shared<Shape>( common.Shape() );
 }
 
 // =============================================================================
@@ -227,7 +266,7 @@ ShapePtr Shape::fillet( double amount ) const {
     mk.Build();
     if (!mk.IsDone())
         throw GeometryError("fillet operation failed");
-    return ShapePtr( new Shape( mk.Shape() ) );
+    return std::make_shared<Shape>( mk.Shape() );
 }
 
 ShapePtr Shape::chamfer( double distance ) const {
@@ -240,7 +279,7 @@ ShapePtr Shape::chamfer( double distance ) const {
     mk.Build();
     if (!mk.IsDone())
         throw GeometryError("chamfer operation failed");
-    return ShapePtr( new Shape( mk.Shape() ) );
+    return std::make_shared<Shape>( mk.Shape() );
 }
 
 // =============================================================================
@@ -250,14 +289,14 @@ ShapePtr Shape::chamfer( double distance ) const {
 ShapePtr Shape::flip() const {
     gp_Trsf mirror;
     mirror.SetMirror(gp::XOY());
-    return ShapePtr(new Shape(BRepBuilderAPI_Transform(mShape, mirror, true).Shape()));
+    return std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, mirror, true).Shape());
 }
 
 ShapePtr Shape::translate( double x, double y, double z ) {
     gp_Trsf tr;
     tr.SetTranslation( gp_Vec(x, y, z) );
     TopLoc_Location loc(tr);
-    return ShapePtr( new Shape( mShape.Moved( loc ) ) );
+    return std::make_shared<Shape>( mShape.Moved( loc ) );
 }
 
 ShapePtr Shape::rotate( double xAngle, double yAngle, double zAngle ) const {
@@ -267,7 +306,7 @@ ShapePtr Shape::rotate( double xAngle, double yAngle, double zAngle ) const {
     rotY.SetRotation(gp::OY(), yAngle * toRad);
     rotZ.SetRotation(gp::OZ(), zAngle * toRad);
     gp_Trsf trsf = rotZ * rotY * rotX;
-    return ShapePtr( new Shape( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() ) );
+    return std::make_shared<Shape>( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() );
 }
 
 ShapePtr Shape::scale( double factor ) const {
@@ -276,7 +315,7 @@ ShapePtr Shape::scale( double factor ) const {
     BRepBuilderAPI_Transform xform(mShape, trsf, true);
     if (!xform.IsDone())
         throw GeometryError("scale operation failed");
-    return ShapePtr( new Shape( xform.Shape() ) );
+    return std::make_shared<Shape>( xform.Shape() );
 }
 
 ShapePtr Shape::scale( double fx, double fy, double fz ) const {
@@ -287,14 +326,14 @@ ShapePtr Shape::scale( double fx, double fy, double fz ) const {
     BRepBuilderAPI_GTransform xform(mShape, gtrsf, true);
     if (!xform.IsDone())
         throw GeometryError("non-uniform scale operation failed");
-    return ShapePtr( new Shape( xform.Shape() ) );
+    return std::make_shared<Shape>( xform.Shape() );
 }
 
 ShapePtr Shape::mirror( double nx, double ny, double nz ) const {
     gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(nx, ny, nz));
     gp_Trsf trsf;
     trsf.SetMirror(ax);
-    return ShapePtr( new Shape( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() ) );
+    return std::make_shared<Shape>( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() );
 }
 
 ShapePtr Shape::placeCorners( ShapePtr shape, double xOffset, double yOffset ) {
@@ -315,7 +354,7 @@ ShapePtr Shape::linearExtrude( double height ) const {
     prism.Build();
     if (!prism.IsDone())
         throw GeometryError("linear_extrude operation failed");
-    return ShapePtr( new Shape( prism.Shape() ) );
+    return std::make_shared<Shape>( prism.Shape() );
 }
 
 ShapePtr Shape::rotateExtrude( double angleDeg ) const {
@@ -338,7 +377,7 @@ ShapePtr Shape::rotateExtrude( double angleDeg ) const {
             result = solidMaker.Shape();
     }
 
-    return ShapePtr( new Shape( result ) );
+    return std::make_shared<Shape>( result );
 }
 
 ShapePtr Shape::sweep( const ShapePtr& pathShape ) const {
@@ -352,7 +391,7 @@ ShapePtr Shape::sweep( const ShapePtr& pathShape ) const {
     pipe.Build();
     if (!pipe.IsDone())
         throw GeometryError("sweep operation failed");
-    return ShapePtr( new Shape( pipe.Shape() ) );
+    return std::make_shared<Shape>( pipe.Shape() );
 }
 
 // =============================================================================
@@ -391,5 +430,155 @@ ShapePtr Shape::shell( double thickness ) const {
     if (!hollower.IsDone())
         throw GeometryError("shell operation failed");
 
-    return ShapePtr( new Shape( hollower.Shape() ) );
+    return std::make_shared<Shape>( hollower.Shape() );
+}
+
+// =============================================================================
+// Feature Patterns
+// =============================================================================
+
+ShapePtr Shape::linearPattern(double dx, double dy, double dz, int count) const {
+    if (count <= 1)
+        return std::make_shared<Shape>(mShape);
+
+    auto result = std::make_shared<Shape>(mShape);
+    for (int i = 1; i < count; ++i) {
+        gp_Trsf tr;
+        tr.SetTranslation(gp_Vec(dx * i, dy * i, dz * i));
+        auto copy = std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, tr, true).Shape());
+        result = result->fuse(copy);
+    }
+    return result;
+}
+
+ShapePtr Shape::circularPattern(double ax, double ay, double az, int count, double angleDeg) const {
+    if (count <= 1)
+        return std::make_shared<Shape>(mShape);
+
+    double totalRad = angleDeg * M_PI / 180.0;
+    double stepAngle = totalRad / count;
+    gp_Ax1 axis(gp::Origin(), gp_Dir(ax, ay, az));
+
+    auto result = std::make_shared<Shape>(mShape);
+    for (int i = 1; i < count; ++i) {
+        gp_Trsf tr;
+        tr.SetRotation(axis, stepAngle * i);
+        auto copy = std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, tr, true).Shape());
+        result = result->fuse(copy);
+    }
+    return result;
+}
+
+ShapePtr Shape::mirrorFeature(double nx, double ny, double nz) const {
+    auto mirrored = mirror(nx, ny, nz);
+    auto self = std::make_shared<Shape>(mShape);
+    return self->fuse(mirrored);
+}
+
+// =============================================================================
+// Advanced Operations
+// =============================================================================
+
+ShapePtr Shape::draft(double angleDeg, double nx, double ny, double nz) const {
+    double angleRad = angleDeg * M_PI / 180.0;
+    gp_Dir pullDir(nx, ny, nz);
+    gp_Pln neutralPlane(gp_Pnt(0, 0, 0), pullDir);
+
+    BRepOffsetAPI_DraftAngle draftMaker(mShape);
+    for (TopExp_Explorer ex(mShape, TopAbs_FACE); ex.More(); ex.Next()) {
+        TopoDS_Face face = TopoDS::Face(ex.Current());
+        BRepAdaptor_Surface surf(face);
+        if (surf.GetType() != GeomAbs_Plane) continue;
+
+        gp_Dir faceNorm = surf.Plane().Axis().Direction();
+        if (face.Orientation() == TopAbs_REVERSED)
+            faceNorm.Reverse();
+
+        // Only draft faces perpendicular to the pull direction
+        double dot = std::abs(faceNorm.X() * pullDir.X() +
+                              faceNorm.Y() * pullDir.Y() +
+                              faceNorm.Z() * pullDir.Z());
+        if (dot < 0.1) { // roughly perpendicular
+            draftMaker.Add(face, pullDir, angleRad, neutralPlane);
+        }
+    }
+    draftMaker.Build();
+    if (!draftMaker.IsDone())
+        throw GeometryError("draft operation failed");
+
+    return std::make_shared<Shape>(draftMaker.Shape());
+}
+
+ShapePtr Shape::splitAt(double px, double py, double pz, double nx, double ny, double nz) const {
+    // Build infinite-ish cutting plane
+    gp_Pln plane(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz));
+    BRepBuilderAPI_MakeFace planeFace(plane, -1000, 1000, -1000, 1000);
+    if (!planeFace.IsDone())
+        throw GeometryError("splitAt: plane face creation failed");
+
+    BRepAlgoAPI_Splitter splitter;
+    TopTools_ListOfShape objects, tools;
+    objects.Append(mShape);
+    tools.Append(planeFace.Shape());
+    splitter.SetArguments(objects);
+    splitter.SetTools(tools);
+    splitter.Build();
+    if (!splitter.IsDone())
+        throw GeometryError("splitAt operation failed");
+
+    // Find the piece on the positive-normal side
+    gp_Dir dir(nx, ny, nz);
+    gp_Pnt refPt(px, py, pz);
+    TopoDS_Shape bestPiece;
+    double bestDot = -1e99;
+
+    for (TopExp_Explorer ex(splitter.Shape(), TopAbs_SOLID); ex.More(); ex.Next()) {
+        Bnd_Box bbox;
+        BRepBndLib::Add(ex.Current(), bbox);
+        double xmin, ymin, zmin, xmax, ymax, zmax;
+        bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+        gp_Pnt center((xmin + xmax) / 2, (ymin + ymax) / 2, (zmin + zmax) / 2);
+        gp_Vec toCenter(refPt, center);
+        double dot = toCenter.X() * dir.X() + toCenter.Y() * dir.Y() + toCenter.Z() * dir.Z();
+        if (dot > bestDot) {
+            bestDot = dot;
+            bestPiece = ex.Current();
+        }
+    }
+
+    if (bestPiece.IsNull())
+        throw GeometryError("splitAt: no solid piece found after split");
+
+    return std::make_shared<Shape>(bestPiece);
+}
+
+// =============================================================================
+// Face / Edge Selection
+// =============================================================================
+
+FaceSelectorPtr Shape::faces() const {
+    return std::make_shared<FaceSelector>(
+        std::const_pointer_cast<Shape>(shared_from_this()));
+}
+
+FaceRefPtr Shape::face(const std::string& selector) const {
+    auto sel = faces();
+
+    if (selector == ">Z") return sel->top();
+    if (selector == "<Z") return sel->bottom();
+    if (selector == ">Y") return sel->back();
+    if (selector == "<Y") return sel->front();
+    if (selector == ">X") return sel->right();
+    if (selector == "<X") return sel->left();
+
+    throw GeometryError("unknown face selector '" + selector +
+                        "' (use >Z, <Z, >Y, <Y, >X, <X)");
+}
+
+FaceRefPtr Shape::topFace() const { return face(">Z"); }
+FaceRefPtr Shape::bottomFace() const { return face("<Z"); }
+
+EdgeSelectorPtr Shape::edges() const {
+    return std::make_shared<EdgeSelector>(
+        std::const_pointer_cast<Shape>(shared_from_this()));
 }

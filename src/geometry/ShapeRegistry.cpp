@@ -1,4 +1,9 @@
 #include "ShapeRegistry.h"
+#include "FaceRef.h"
+#include "FaceSelector.h"
+#include "Workplane.h"
+#include "Sketch.h"
+#include "EdgeSelector.h"
 #include "Error.h"
 
 namespace opendcad {
@@ -36,6 +41,27 @@ ValuePtr ShapeRegistry::callMethod(const std::string& name, ShapePtr self, const
     if (it == methods_.end())
         throw EvalError("unknown method '" + name + "'");
     return it->second(std::move(self), args);
+}
+
+void ShapeRegistry::registerTypedMethod(ValueType type, const std::string& name, TypedMethod fn) {
+    typedMethods_[static_cast<int>(type)][name] = std::move(fn);
+}
+
+bool ShapeRegistry::hasTypedMethod(ValueType type, const std::string& name) const {
+    auto typeIt = typedMethods_.find(static_cast<int>(type));
+    if (typeIt == typedMethods_.end()) return false;
+    return typeIt->second.count(name) > 0;
+}
+
+ValuePtr ShapeRegistry::callTypedMethod(ValueType type, const std::string& name,
+                                        ValuePtr self, const std::vector<ValuePtr>& args) const {
+    auto typeIt = typedMethods_.find(static_cast<int>(type));
+    if (typeIt == typedMethods_.end())
+        throw EvalError("no methods registered for type");
+    auto methodIt = typeIt->second.find(name);
+    if (methodIt == typeIt->second.end())
+        throw EvalError("unknown method '" + name + "'");
+    return methodIt->second(std::move(self), args);
 }
 
 static double requireNumber(const std::vector<ValuePtr>& args, size_t index, const std::string& context) {
@@ -131,6 +157,18 @@ void ShapeRegistry::registerDefaults() {
         for (const auto& arg : args)
             profiles.push_back(arg->asShape());
         return Shape::createLoft(profiles);
+    });
+
+    registerFactory("import_step", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 1)
+            throw EvalError("import_step() requires 1 argument (path), got " + std::to_string(args.size()));
+        return Shape::importSTEP(args[0]->asString());
+    });
+
+    registerFactory("import_stl", [](const std::vector<ValuePtr>& args) -> ShapePtr {
+        if (args.size() != 1)
+            throw EvalError("import_stl() requires 1 argument (path), got " + std::to_string(args.size()));
+        return Shape::importSTL(args[0]->asString());
     });
 
     // =========================================================================
@@ -275,6 +313,491 @@ void ShapeRegistry::registerDefaults() {
         double yOff = args[2]->asNumber();
         return Value::makeShape(self->placeCorners(shape, xOff, yOff));
     });
+
+    // =========================================================================
+    // Typed Methods — SHAPE
+    // =========================================================================
+
+    registerTypedMethod(ValueType::SHAPE, "face",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            auto shape = self->asShape();
+            std::string sel = args.at(0)->asString();
+            return Value::makeFaceRef(shape->face(sel));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "faces",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceSelector(self->asShape()->faces());
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "edges",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asShape()->edges());
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "topFace",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asShape()->topFace());
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "bottomFace",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asShape()->bottomFace());
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "linearPattern",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dx = 0, dy = 0, dz = 0;
+            int count = 0;
+            if (args.size() >= 2 && args[0]->type() == ValueType::VECTOR) {
+                const auto& v = args[0]->asVector();
+                dx = v.size() > 0 ? v[0] : 0;
+                dy = v.size() > 1 ? v[1] : 0;
+                dz = v.size() > 2 ? v[2] : 0;
+                count = static_cast<int>(args[1]->asNumber());
+            } else {
+                throw EvalError("linearPattern() requires (vector, count)");
+            }
+            return Value::makeShape(self->asShape()->linearPattern(dx, dy, dz, count));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "circularPattern",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2 || args[0]->type() != ValueType::VECTOR)
+                throw EvalError("circularPattern() requires (axis_vector, count[, angle])");
+            const auto& v = args[0]->asVector();
+            double ax = v.size() > 0 ? v[0] : 0;
+            double ay = v.size() > 1 ? v[1] : 0;
+            double az = v.size() > 2 ? v[2] : 0;
+            int count = static_cast<int>(args[1]->asNumber());
+            double angle = args.size() > 2 ? args[2]->asNumber() : 360.0;
+            return Value::makeShape(self->asShape()->circularPattern(ax, ay, az, count, angle));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "mirrorFeature",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double nx = 0, ny = 0, nz = 0;
+            if (args.size() == 1 && args[0]->type() == ValueType::VECTOR) {
+                const auto& v = args[0]->asVector();
+                nx = v.size() > 0 ? v[0] : 0;
+                ny = v.size() > 1 ? v[1] : 0;
+                nz = v.size() > 2 ? v[2] : 0;
+            } else if (args.size() == 3) {
+                nx = args[0]->asNumber();
+                ny = args[1]->asNumber();
+                nz = args[2]->asNumber();
+            } else {
+                throw EvalError("mirrorFeature() requires a normal vector");
+            }
+            return Value::makeShape(self->asShape()->mirrorFeature(nx, ny, nz));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "draft",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2)
+                throw EvalError("draft() requires (angle, direction_vector)");
+            double angle = args[0]->asNumber();
+            const auto& v = args[1]->asVector();
+            if (v.size() < 3)
+                throw EvalError("draft() direction vector must have 3 components");
+            return Value::makeShape(self->asShape()->draft(angle, v[0], v[1], v[2]));
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "splitAt",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2)
+                throw EvalError("splitAt() requires (point_vector, normal_vector)");
+            const auto& p = args[0]->asVector();
+            const auto& n = args[1]->asVector();
+            if (p.size() < 3 || n.size() < 3)
+                throw EvalError("splitAt() vectors must have 3 components");
+            return Value::makeShape(self->asShape()->splitAt(p[0], p[1], p[2], n[0], n[1], n[2]));
+        });
+
+    // =========================================================================
+    // Typed Methods — FACE_REF
+    // =========================================================================
+
+    registerTypedMethod(ValueType::FACE_REF, "draw",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeSketch(self->asFaceRef()->draw());
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "workplane",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeWorkplane(self->asFaceRef()->workplane());
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "center",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            gp_Pnt c = self->asFaceRef()->center();
+            return Value::makeVector({c.X(), c.Y(), c.Z()});
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "normal",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            gp_Dir n = self->asFaceRef()->normal();
+            return Value::makeVector({n.X(), n.Y(), n.Z()});
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "area",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeNumber(self->asFaceRef()->area());
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "isPlanar",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeBool(self->asFaceRef()->isPlanar());
+        });
+
+    // =========================================================================
+    // Typed Methods — FACE_SELECTOR
+    // =========================================================================
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "top",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->top());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "bottom",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->bottom());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "front",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->front());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "back",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->back());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "left",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->left());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "right",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->right());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "largest",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->largest());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "smallest",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceRef(self->asFaceSelector()->smallest());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "planar",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceSelector(self->asFaceSelector()->planar());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "cylindrical",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeFaceSelector(self->asFaceSelector()->cylindrical());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "byIndex",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            int idx = static_cast<int>(requireNumber(args, 0, "byIndex"));
+            return Value::makeFaceRef(self->asFaceSelector()->byIndex(idx));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "count",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeNumber(self->asFaceSelector()->count());
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "nearestTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            const auto& v = args.at(0)->asVector();
+            if (v.size() < 3)
+                throw EvalError("nearestTo() requires a 3-component vector");
+            return Value::makeFaceRef(self->asFaceSelector()->nearestTo(gp_Pnt(v[0], v[1], v[2])));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "farthestFrom",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            const auto& v = args.at(0)->asVector();
+            if (v.size() < 3)
+                throw EvalError("farthestFrom() requires a 3-component vector");
+            return Value::makeFaceRef(self->asFaceSelector()->farthestFrom(gp_Pnt(v[0], v[1], v[2])));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "areaGreaterThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double minArea = requireNumber(args, 0, "areaGreaterThan");
+            return Value::makeFaceSelector(self->asFaceSelector()->areaGreaterThan(minArea));
+        });
+
+    registerTypedMethod(ValueType::FACE_SELECTOR, "areaLessThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double maxArea = requireNumber(args, 0, "areaLessThan");
+            return Value::makeFaceSelector(self->asFaceSelector()->areaLessThan(maxArea));
+        });
+
+    // =========================================================================
+    // Typed Methods — WORKPLANE
+    // =========================================================================
+
+    registerTypedMethod(ValueType::WORKPLANE, "draw",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeSketch(self->asWorkplane()->draw());
+        });
+
+    registerTypedMethod(ValueType::WORKPLANE, "offset",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dist = requireNumber(args, 0, "offset");
+            return Value::makeWorkplane(self->asWorkplane()->offset(dist));
+        });
+
+    // =========================================================================
+    // Typed Methods — SKETCH
+    // =========================================================================
+
+    registerTypedMethod(ValueType::SKETCH, "circle",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double r = requireNumber(args, 0, "circle");
+            double cx = args.size() > 1 ? args[1]->asNumber() : 0;
+            double cy = args.size() > 2 ? args[2]->asNumber() : 0;
+            return Value::makeSketch(self->asSketch()->circle(r, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "rect",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double w = requireNumber(args, 0, "rect");
+            double h = requireNumber(args, 1, "rect");
+            double cx = args.size() > 2 ? args[2]->asNumber() : 0;
+            double cy = args.size() > 3 ? args[3]->asNumber() : 0;
+            return Value::makeSketch(self->asSketch()->rect(w, h, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "polygon",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            std::vector<std::pair<double,double>> pts;
+            for (const auto& arg : args) {
+                const auto& v = arg->asVector();
+                if (v.size() < 2)
+                    throw EvalError("polygon point must have at least 2 coordinates");
+                pts.emplace_back(v[0], v[1]);
+            }
+            return Value::makeSketch(self->asSketch()->polygon(pts));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "moveTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double x = requireNumber(args, 0, "moveTo");
+            double y = requireNumber(args, 1, "moveTo");
+            return Value::makeSketch(self->asSketch()->moveTo(x, y));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "lineTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double x = requireNumber(args, 0, "lineTo");
+            double y = requireNumber(args, 1, "lineTo");
+            return Value::makeSketch(self->asSketch()->lineTo(x, y));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "close",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeSketch(self->asSketch()->close());
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "extrude",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double h = requireNumber(args, 0, "extrude");
+            return Value::makeShape(self->asSketch()->extrude(h));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "cutBlind",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double d = requireNumber(args, 0, "cutBlind");
+            return Value::makeShape(self->asSketch()->cutBlind(d));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "cutThrough",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeShape(self->asSketch()->cutThrough());
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "slot",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double length = requireNumber(args, 0, "slot");
+            double width = requireNumber(args, 1, "slot");
+            double cx = args.size() > 2 ? args[2]->asNumber() : 0;
+            double cy = args.size() > 3 ? args[3]->asNumber() : 0;
+            return Value::makeSketch(self->asSketch()->slot(length, width, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "arcTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double x = requireNumber(args, 0, "arcTo");
+            double y = requireNumber(args, 1, "arcTo");
+            double bulge = requireNumber(args, 2, "arcTo");
+            return Value::makeSketch(self->asSketch()->arcTo(x, y, bulge));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "splineTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            // Last two args are end x, y; preceding args are through-point vectors
+            if (args.size() < 3)
+                throw EvalError("splineTo() requires at least 1 through-point vector and end x, y");
+            double ey = args.back()->asNumber();
+            double ex = args[args.size() - 2]->asNumber();
+            std::vector<std::pair<double,double>> throughPts;
+            for (size_t i = 0; i < args.size() - 2; ++i) {
+                const auto& v = args[i]->asVector();
+                if (v.size() < 2)
+                    throw EvalError("splineTo through-point must have at least 2 coordinates");
+                throughPts.emplace_back(v[0], v[1]);
+            }
+            return Value::makeSketch(self->asSketch()->splineTo(throughPts, ex, ey));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "revolve",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double angle = 360.0;
+            if (!args.empty())
+                angle = args[0]->asNumber();
+            return Value::makeShape(self->asSketch()->revolve(angle));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "fillet2D",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double r = requireNumber(args, 0, "fillet2D");
+            return Value::makeSketch(self->asSketch()->fillet2D(r));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "chamfer2D",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double d = requireNumber(args, 0, "chamfer2D");
+            return Value::makeSketch(self->asSketch()->chamfer2D(d));
+        });
+
+    registerTypedMethod(ValueType::SKETCH, "offset",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double d = requireNumber(args, 0, "offset");
+            return Value::makeSketch(self->asSketch()->offset(d));
+        });
+
+    // =========================================================================
+    // Typed Methods — FACE_REF (parametric holes)
+    // =========================================================================
+
+    registerTypedMethod(ValueType::FACE_REF, "hole",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dia = requireNumber(args, 0, "hole");
+            double depth = requireNumber(args, 1, "hole");
+            double cx = args.size() > 2 ? args[2]->asNumber() : 0;
+            double cy = args.size() > 3 ? args[3]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->hole(dia, depth, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "throughHole",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double dia = requireNumber(args, 0, "throughHole");
+            double cx = args.size() > 1 ? args[1]->asNumber() : 0;
+            double cy = args.size() > 2 ? args[2]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->throughHole(dia, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "counterbore",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double holeDia = requireNumber(args, 0, "counterbore");
+            double boreDia = requireNumber(args, 1, "counterbore");
+            double boreDepth = requireNumber(args, 2, "counterbore");
+            double holeDepth = requireNumber(args, 3, "counterbore");
+            double cx = args.size() > 4 ? args[4]->asNumber() : 0;
+            double cy = args.size() > 5 ? args[5]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->counterbore(holeDia, boreDia, boreDepth, holeDepth, cx, cy));
+        });
+
+    registerTypedMethod(ValueType::FACE_REF, "countersink",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double holeDia = requireNumber(args, 0, "countersink");
+            double sinkDia = requireNumber(args, 1, "countersink");
+            double sinkAngle = requireNumber(args, 2, "countersink");
+            double holeDepth = requireNumber(args, 3, "countersink");
+            double cx = args.size() > 4 ? args[4]->asNumber() : 0;
+            double cy = args.size() > 5 ? args[5]->asNumber() : 0;
+            return Value::makeShape(self->asFaceRef()->countersink(holeDia, sinkDia, sinkAngle, holeDepth, cx, cy));
+        });
+
+    // =========================================================================
+    // Typed Methods — EDGE_SELECTOR
+    // =========================================================================
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "parallelTo",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            const auto& v = args.at(0)->asVector();
+            if (v.size() < 3)
+                throw EvalError("parallelTo() requires a 3-component vector");
+            gp_Dir dir(v[0], v[1], v[2]);
+            return Value::makeEdgeSelector(self->asEdgeSelector()->parallelTo(dir));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "vertical",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asEdgeSelector()->vertical());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "horizontal",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asEdgeSelector()->horizontal());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "fillet",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double r = requireNumber(args, 0, "fillet");
+            return Value::makeShape(self->asEdgeSelector()->fillet(r));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "chamfer",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double d = requireNumber(args, 0, "chamfer");
+            return Value::makeShape(self->asEdgeSelector()->chamfer(d));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "count",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeNumber(self->asEdgeSelector()->count());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "longest",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asEdgeSelector()->longest());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "shortest",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            return Value::makeEdgeSelector(self->asEdgeSelector()->shortest());
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "longerThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double minLen = requireNumber(args, 0, "longerThan");
+            return Value::makeEdgeSelector(self->asEdgeSelector()->longerThan(minLen));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "shorterThan",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            double maxLen = requireNumber(args, 0, "shorterThan");
+            return Value::makeEdgeSelector(self->asEdgeSelector()->shorterThan(maxLen));
+        });
+
+    registerTypedMethod(ValueType::EDGE_SELECTOR, "ofFace",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::FACE_REF)
+                throw EvalError("ofFace() requires a face reference argument");
+            return Value::makeEdgeSelector(self->asEdgeSelector()->ofFace(args[0]->asFaceRef()));
+        });
 }
 
 } // namespace opendcad
