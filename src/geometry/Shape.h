@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <TopoDS_Shape.hxx>
+#include "Color.h"
 
 namespace opendcad {
 
@@ -96,8 +97,17 @@ public:
     EdgeSelectorPtr edges() const;
 
     bool isValid() const { return !mShape.IsNull(); }
+
+    // --- Color/Material metadata ---
+    void setColor(ColorPtr c) { color_ = std::move(c); }
+    void setMaterial(MaterialPtr m) { material_ = std::move(m); }
+    ColorPtr color() const { return color_; }
+    MaterialPtr material() const { return material_; }
+
 private:
     TopoDS_Shape mShape;
+    ColorPtr color_;
+    MaterialPtr material_;
 };
 
 } // namespace opendcad

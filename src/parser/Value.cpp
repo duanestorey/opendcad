@@ -1,5 +1,6 @@
 #include "Value.h"
 #include "FunctionDef.h"
+#include "Color.h"
 #include "Error.h"
 #include "Shape.h"
 #include <cmath>
@@ -97,6 +98,20 @@ ValuePtr Value::makeFunction(FunctionDefPtr fn) {
     return val;
 }
 
+ValuePtr Value::makeColor(ColorPtr c) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::COLOR;
+    val->color_ = std::move(c);
+    return val;
+}
+
+ValuePtr Value::makeMaterial(MaterialPtr m) {
+    auto val = std::make_shared<Value>();
+    val->type_ = ValueType::MATERIAL;
+    val->material_ = std::move(m);
+    return val;
+}
+
 std::string Value::typeName() const {
     switch (type_) {
         case ValueType::NUMBER:        return "number";
@@ -112,6 +127,8 @@ std::string Value::typeName() const {
         case ValueType::EDGE_SELECTOR: return "edge_selector";
         case ValueType::LIST:          return "list";
         case ValueType::FUNCTION:      return "function";
+        case ValueType::COLOR:         return "color";
+        case ValueType::MATERIAL:      return "material";
     }
     return "unknown";
 }
@@ -221,6 +238,18 @@ FunctionDefPtr Value::asFunction() const {
     return functionDef_;
 }
 
+ColorPtr Value::asColor() const {
+    if (type_ != ValueType::COLOR)
+        throw EvalError("expected color, got " + typeName());
+    return color_;
+}
+
+MaterialPtr Value::asMaterial() const {
+    if (type_ != ValueType::MATERIAL)
+        throw EvalError("expected material, got " + typeName());
+    return material_;
+}
+
 bool Value::isTruthy() const {
     switch (type_) {
         case ValueType::NIL:           return false;
@@ -236,6 +265,8 @@ bool Value::isTruthy() const {
         case ValueType::EDGE_SELECTOR: return edgeSelector_ != nullptr;
         case ValueType::LIST:          return !list_.empty();
         case ValueType::FUNCTION:      return true;
+        case ValueType::COLOR:         return color_ != nullptr;
+        case ValueType::MATERIAL:      return material_ != nullptr;
     }
     return false;
 }
@@ -407,6 +438,10 @@ std::string Value::toString() const {
         }
         case ValueType::FUNCTION:
             return "<fn " + (functionDef_ ? functionDef_->name : "?") + ">";
+        case ValueType::COLOR:
+            return color_ ? color_->toString() : "<color>";
+        case ValueType::MATERIAL:
+            return material_ ? material_->toString() : "<material>";
     }
     return "unknown";
 }

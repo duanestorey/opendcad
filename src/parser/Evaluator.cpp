@@ -2,6 +2,10 @@
 #include "FunctionDef.h"
 #include "ShapeRegistry.h"
 #include "Debug.h"
+#include "OpenDCADLexer.h"
+#include "Color.h"
+#include <filesystem>
+#include <fstream>
 
 namespace opendcad {
 
@@ -67,6 +71,85 @@ void Evaluator::registerBuiltins() {
         std::cout << "\n";
         return Value::makeNil();
     };
+
+    builtins_["color"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        if (args.size() == 1 && args[0]->type() == ValueType::STRING) {
+            return Value::makeColor(std::make_shared<Color>(Color::fromHex(args[0]->asString())));
+        }
+        if (args.size() >= 3) {
+            double r = args[0]->asNumber();
+            double g = args[1]->asNumber();
+            double b = args[2]->asNumber();
+            double a = args.size() > 3 ? args[3]->asNumber() : 1.0;
+            return Value::makeColor(std::make_shared<Color>(Color::fromRGB(r, g, b, a)));
+        }
+        throw EvalError("color() requires (r,g,b), (r,g,b,a), or (\"#hex\")");
+    };
+
+    builtins_["material"] = [](const std::vector<ValuePtr>& args) -> ValuePtr {
+        auto mat = std::make_shared<Material>();
+        if (!args.empty()) {
+            if (args[0]->type() == ValueType::STRING)
+                mat->preset = args[0]->asString();
+            else if (args[0]->type() == ValueType::COLOR)
+                mat->baseColor = args[0]->asColor();
+        }
+        // Named args are handled at call site and passed positionally for builtins
+        // For now, material("steel") just sets the preset name
+        return Value::makeMaterial(mat);
+    };
+
+    // --- Phase 8: Standard Library ---
+
+    // Named colors
+    auto defColor = [this](const std::string& name, double r, double g, double b) {
+        env_->defineConst(name, Value::makeColor(std::make_shared<Color>(Color::fromRGB(r, g, b))));
+    };
+    defColor("RED", 255, 0, 0);
+    defColor("GREEN", 0, 128, 0);
+    defColor("BLUE", 0, 0, 255);
+    defColor("WHITE", 255, 255, 255);
+    defColor("BLACK", 0, 0, 0);
+    defColor("YELLOW", 255, 255, 0);
+    defColor("CYAN", 0, 255, 255);
+    defColor("MAGENTA", 255, 0, 255);
+    defColor("ORANGE", 255, 165, 0);
+    defColor("PURPLE", 128, 0, 128);
+    defColor("PINK", 255, 192, 203);
+    defColor("GREY", 128, 128, 128);
+    defColor("GRAY", 128, 128, 128);
+    defColor("DARK_RED", 139, 0, 0);
+    defColor("DARK_GREEN", 0, 100, 0);
+    defColor("DARK_BLUE", 0, 0, 139);
+    defColor("LIGHT_GREY", 211, 211, 211);
+    defColor("LIGHT_GRAY", 211, 211, 211);
+
+    // Material presets
+    auto defMat = [this](const std::string& name, const std::string& preset,
+                         double metallic, double roughness) {
+        auto mat = std::make_shared<Material>();
+        mat->preset = preset;
+        mat->metallic = metallic;
+        mat->roughness = roughness;
+        env_->defineConst(name, Value::makeMaterial(mat));
+    };
+    defMat("STEEL", "steel", 0.9, 0.3);
+    defMat("ALUMINUM", "aluminum", 0.9, 0.4);
+    defMat("BRASS", "brass", 0.9, 0.3);
+    defMat("COPPER", "copper", 0.9, 0.2);
+    defMat("CHROME", "chrome", 1.0, 0.1);
+    defMat("TITANIUM", "titanium", 0.8, 0.35);
+    defMat("CAST_IRON", "cast_iron", 0.7, 0.6);
+    defMat("ABS_WHITE", "abs_white", 0.0, 0.7);
+    defMat("ABS_BLACK", "abs_black", 0.0, 0.7);
+    defMat("NYLON", "nylon", 0.0, 0.6);
+    defMat("POLYCARBONATE", "polycarbonate", 0.0, 0.4);
+    defMat("ACRYLIC", "acrylic", 0.0, 0.3);
+    defMat("RUBBER", "rubber", 0.0, 0.95);
+    defMat("WOOD", "wood", 0.0, 0.8);
+    defMat("GLASS", "glass", 0.0, 0.05);
+    defMat("CARBON_FIBER", "carbon_fiber", 0.3, 0.4);
+    defMat("CONCRETE", "concrete", 0.0, 0.9);
 }
 
 void Evaluator::evaluate(OpenDCADParser::ProgramContext* tree,
@@ -254,6 +337,14 @@ antlrcpp::Any Evaluator::visitPostfixIncrStmt(OpenDCADParser::PostfixIncrStmtCon
 antlrcpp::Any Evaluator::visitExportStmt(OpenDCADParser::ExportStmtContext* ctx) {
     std::string name = ctx->IDENT()->getText();
     ValuePtr value = toValue(visit(ctx->expr()));
+
+    // When importing, exports make shapes available by name but don't produce output
+    if (isImporting_) {
+        env_->define(name, value);
+        DEBUG_INFO("export " << name << " (suppressed during import)");
+        return Value::makeNil();
+    }
+
     ShapePtr shape;
     try {
         shape = value->asShape();
@@ -268,6 +359,67 @@ antlrcpp::Any Evaluator::visitExportStmt(OpenDCADParser::ExportStmtContext* ctx)
 
 antlrcpp::Any Evaluator::visitExprStmt(OpenDCADParser::ExprStmtContext* ctx) {
     visit(ctx->chainExpr());
+    return Value::makeNil();
+}
+
+// --- Imports ---
+
+antlrcpp::Any Evaluator::visitImportStmt(OpenDCADParser::ImportStmtContext* ctx) {
+    std::string rawPath = ctx->STRING()->getText();
+    std::string path = rawPath.substr(1, rawPath.size() - 2);  // strip quotes
+
+    // Resolve relative to current file's directory
+    std::filesystem::path resolved;
+    if (std::filesystem::path(path).is_relative() && !filename_.empty()) {
+        std::filesystem::path currentDir = std::filesystem::path(filename_).parent_path();
+        resolved = std::filesystem::weakly_canonical(currentDir / path);
+    } else {
+        resolved = std::filesystem::weakly_canonical(path);
+    }
+
+    std::string resolvedStr = resolved.string();
+
+    // Circular import detection
+    if (importStack_.count(resolvedStr)) {
+        throw EvalError("circular import detected: " + resolvedStr, locFrom(ctx));
+    }
+
+    // Load the file
+    std::ifstream file(resolvedStr);
+    if (!file) {
+        throw EvalError("cannot open import file: " + resolvedStr, locFrom(ctx));
+    }
+    std::string src((std::istreambuf_iterator<char>(file)),
+                     std::istreambuf_iterator<char>());
+
+    // Parse — keep parse tree alive for function body references
+    auto ipt = std::make_unique<ImportedParseTree>();
+    ipt->input = std::make_unique<antlr4::ANTLRInputStream>(src);
+    ipt->lexer = std::make_unique<OpenDCADLexer>(ipt->input.get());
+    ipt->tokens = std::make_unique<antlr4::CommonTokenStream>(ipt->lexer.get());
+    ipt->parser = std::make_unique<OpenDCADParser>(ipt->tokens.get());
+    auto* tree = ipt->parser->program();
+
+    if (ipt->parser->getNumberOfSyntaxErrors() > 0) {
+        throw EvalError("syntax errors in imported file: " + resolvedStr, locFrom(ctx));
+    }
+
+    importedTrees_.push_back(std::move(ipt));
+
+    // Evaluate in current environment (brings names into scope)
+    auto prevFilename = filename_;
+    auto prevImporting = isImporting_;
+    filename_ = resolvedStr;
+    isImporting_ = true;
+    importStack_.insert(resolvedStr);
+
+    visit(tree);
+
+    filename_ = prevFilename;
+    isImporting_ = prevImporting;
+    importStack_.erase(resolvedStr);
+
+    DEBUG_INFO("import " << resolvedStr);
     return Value::makeNil();
 }
 

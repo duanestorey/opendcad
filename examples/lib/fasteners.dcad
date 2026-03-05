@@ -1,0 +1,24 @@
+// Fastener library
+
+const M3_DIA = 3.0;
+const M4_DIA = 4.0;
+const M5_DIA = 5.0;
+
+fn m3_bolt(length) {
+    let head = cylinder(M3_DIA, 2).translate([0, 0, length]);
+    let shaft = cylinder(M3_DIA / 2, length);
+    return head.fuse(shaft);
+}
+
+fn m4_bolt(length) {
+    let head = cylinder(M4_DIA, 2.5).translate([0, 0, length]);
+    let shaft = cylinder(M4_DIA / 2, length);
+    return head.fuse(shaft);
+}
+
+fn standoff(dia, height) {
+    return cylinder(dia / 2, height);
+}
+
+// Test export for standalone use
+export m3_bolt(12) as sample_bolt;

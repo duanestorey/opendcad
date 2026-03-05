@@ -4,6 +4,7 @@
 #include "Workplane.h"
 #include "Sketch.h"
 #include "EdgeSelector.h"
+#include "Color.h"
 #include "Error.h"
 
 namespace opendcad {
@@ -820,6 +821,26 @@ void ShapeRegistry::registerDefaults() {
             if (args.size() != 1)
                 throw EvalError("get() requires 1 argument (index)");
             return self->listGet(static_cast<int>(args[0]->asNumber()));
+        });
+
+    // ===== Color/Material on shapes =====
+
+    registerTypedMethod(ValueType::SHAPE, "color",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::COLOR)
+                throw EvalError("color() requires a color argument");
+            auto shape = self->asShape();
+            shape->setColor(args[0]->asColor());
+            return Value::makeShape(shape);
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "material",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::MATERIAL)
+                throw EvalError("material() requires a material argument");
+            auto shape = self->asShape();
+            shape->setMaterial(args[0]->asMaterial());
+            return Value::makeShape(shape);
         });
 }
 

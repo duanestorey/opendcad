@@ -2,9 +2,11 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include <functional>
 #include <unordered_map>
 #include "antlr4-runtime.h"
+#include "OpenDCADLexer.h"
 #include "OpenDCADBaseVisitor.h"
 #include "OpenDCADParser.h"
 #include "Value.h"
@@ -58,6 +60,9 @@ public:
     // Functions
     antlrcpp::Any visitFnDecl(OpenDCADParser::FnDeclContext* ctx) override;
 
+    // Imports
+    antlrcpp::Any visitImportStmt(OpenDCADParser::ImportStmtContext* ctx) override;
+
     // For loop init/update helpers
     antlrcpp::Any visitForInitLet(OpenDCADParser::ForInitLetContext* ctx) override;
     antlrcpp::Any visitForInitAssign(OpenDCADParser::ForInitAssignContext* ctx) override;
@@ -94,6 +99,18 @@ private:
     std::vector<ExportEntry> exports_;
     std::string filename_;
     std::unordered_map<std::string, BuiltinFn> builtins_;
+    std::set<std::string> importStack_;
+    bool isImporting_ = false;
+
+    // Keep imported parse trees alive (functions reference AST nodes)
+    struct ImportedParseTree {
+        std::unique_ptr<antlr4::ANTLRInputStream> input;
+        std::unique_ptr<antlr4::CommonTokenStream> tokens;
+        std::unique_ptr<OpenDCADParser> parser;
+        // lexer must also be kept alive
+        std::unique_ptr<OpenDCADLexer> lexer;
+    };
+    std::vector<std::unique_ptr<ImportedParseTree>> importedTrees_;
     static constexpr int MAX_ITERATIONS = 100000;
 
     void registerBuiltins();
