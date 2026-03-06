@@ -20,7 +20,10 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --pre
 # Build (skip viewer on Linux — has pre-existing GL errors)
 cmake --build build --config Release --target opendcad opendcad_tests
 
-# Run tests (270 tests, GoogleTest)
+# Build everything including the 3D viewer (macOS)
+cmake --build build --config Release
+
+# Run tests (281 tests, GoogleTest)
 ./build/bin/opendcad_tests
 
 # Run a script (outputs to build/ by default)
@@ -35,6 +38,9 @@ cmake --build build --config Release --target opendcad opendcad_tests
 ./build/bin/opendcad model.dcad --list-exports        # print export names
 ./build/bin/opendcad model.dcad --dry-run             # evaluate, write nothing
 ./build/bin/opendcad model.dcad --quiet               # suppress banner/info
+
+# Launch the 3D viewer with a STEP file
+./build/bin/opendcad_viewer build/model.step
 
 # Clean rebuild (when grammar or CMake changes)
 rm -rf build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release --target opendcad opendcad_tests
@@ -71,11 +77,24 @@ src/
     StepExporter.h/.cpp      — STEP file output (with XDE color metadata)
     StlExporter.h/.cpp       — STL file output (returns StlResult with triangle count)
     ManifestExporter.h/.cpp  — JSON manifest output (with build metrics)
-  viewer/viewer.cpp          — GLFW + OpenGL 3D viewer (standalone)
+  viewer/                     — GLFW + OpenGL 3D viewer (deferred PBR pipeline)
+    viewer_main.cpp          — Viewer entry point
+    ViewerApp.h/.cpp         — GLFW window + event loop + UI integration
+    Renderer.h/.cpp          — Deferred rendering (G-Buffer, SSAO, Cook-Torrance PBR)
+    RenderScene.h/.cpp       — Scene management + GPU upload
+    Tessellator.h/.cpp       — OCCT shape to GPU mesh conversion
+    Camera.h/.cpp            — Orbital camera with zoom-to-cursor
+    StepLoader.h/.cpp        — STEP + JSON sidecar loading
+    EnvironmentMap.h/.cpp    — IBL precomputation (irradiance, prefiltered, BRDF LUT)
+    ShaderProgram.h/.cpp     — Shader compilation + uniform caching
+    GridMesh.h/.cpp          — Infinite ground grid
+    FileWatcher.h/.cpp       — File watcher with hot-reload
+    Screenshot.h/.cpp        — PNG screenshot export
+    ui/                      — ImGui panels (objects, layers, properties, materials)
   core/
     output.h/.cpp            — ANSI terminal colors
     Timer.h/.cpp             — Performance timing
-tests/                       — GoogleTest test files (270 tests across 12 suites)
+tests/                       — GoogleTest test files (281 tests across 13 suites)
 examples/                    — Example .dcad scripts
   lib/                       — Library files for import
 docs/plan/                   — Design documents and phase plans
@@ -150,6 +169,7 @@ See `docs/plan/language-reference.md` for the complete specification.
 - All shapes use `ShapePtr` (`std::shared_ptr<Shape>`) — no raw pointers for geometry
 - `enable_shared_from_this` requires `std::make_shared<T>(...)` everywhere
 - Fluent API pattern — all Shape methods return `ShapePtr` for chaining
+- Metadata propagation — all Shape instance methods call `copyMetaTo()` so color/material/tags survive transforms and booleans (originator wins on fuse/cut)
 - Namespace: `opendcad`, ANTLR package: `OpenDCAD`
 - Cast `ValueType` to `int` for `std::unordered_map` keys in typed method dispatch
 - Forward declarations in Value.h for shared_ptr members; `.cpp` files need full includes
