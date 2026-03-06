@@ -2,12 +2,22 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 #include "Camera.h"
 #include "GridMesh.h"
 #include "ShaderProgram.h"
 #include "Renderer.h"
 #include "RenderScene.h"
+
+// UI panels
+#include "ui/ImGuiSetup.h"
+#include "ui/ObjectPanel.h"
+#include "ui/LayerPanel.h"
+#include "ui/PropertiesPanel.h"
+#include "ui/MaterialPanel.h"
+#include "ui/MenuBar.h"
+#include "ui/ViewportOverlay.h"
 
 // ANTLR + evaluator includes (for loadDcad)
 #include "antlr4-runtime.h"
@@ -66,6 +76,19 @@ void ViewerApp::glfwErrorCallback(int code, const char* desc) {
 ViewerApp::ViewerApp() = default;
 
 ViewerApp::~ViewerApp() {
+    if (imguiInitialized_) {
+        ImGuiSetup::shutdown();
+        imguiInitialized_ = false;
+    }
+
+    // Reset UI panels before GL context is destroyed
+    objectPanel_.reset();
+    layerPanel_.reset();
+    propertiesPanel_.reset();
+    materialPanel_.reset();
+    menuBar_.reset();
+    viewportOverlay_.reset();
+
     scene_.reset();
     renderer_.reset();
     grid_.reset();
@@ -131,6 +154,7 @@ bool ViewerApp::init(int width, int height) {
 
     // Mouse button
     glfwSetMouseButtonCallback(window_, [](GLFWwindow* w, int button, int action, int mods) {
+        if (ImGui::GetIO().WantCaptureMouse) return;
         auto* self = static_cast<ViewerApp*>(glfwGetWindowUserPointer(w));
         if (action == GLFW_PRESS) {
             glfwGetCursorPos(w, &self->lastMouseX_, &self->lastMouseY_);
@@ -153,6 +177,7 @@ bool ViewerApp::init(int width, int height) {
 
     // Cursor position
     glfwSetCursorPosCallback(window_, [](GLFWwindow* w, double xpos, double ypos) {
+        if (ImGui::GetIO().WantCaptureMouse) return;
         auto* self = static_cast<ViewerApp*>(glfwGetWindowUserPointer(w));
         double dx = xpos - self->lastMouseX_;
         double dy = ypos - self->lastMouseY_;
@@ -176,6 +201,7 @@ bool ViewerApp::init(int width, int height) {
 
     // Scroll
     glfwSetScrollCallback(window_, [](GLFWwindow* w, double /*xoffset*/, double yoffset) {
+        if (ImGui::GetIO().WantCaptureMouse) return;
         auto* self = static_cast<ViewerApp*>(glfwGetWindowUserPointer(w));
         double cx, cy;
         glfwGetCursorPos(w, &cx, &cy);
@@ -187,6 +213,7 @@ bool ViewerApp::init(int width, int height) {
 
     // Key
     glfwSetKeyCallback(window_, [](GLFWwindow* w, int key, int /*scancode*/, int action, int /*mods*/) {
+        if (ImGui::GetIO().WantCaptureKeyboard) return;
         if (action != GLFW_PRESS) return;
         auto* self = static_cast<ViewerApp*>(glfwGetWindowUserPointer(w));
         switch (key) {
@@ -266,6 +293,20 @@ bool ViewerApp::init(int width, int height) {
         return false;
     }
     scene_ = std::make_unique<RenderScene>();
+
+    // -----------------------------------------------------------------------
+    // Initialize ImGui
+    // -----------------------------------------------------------------------
+    ImGuiSetup::init(window_);
+    imguiInitialized_ = true;
+
+    // Create UI panels
+    objectPanel_ = std::make_unique<ObjectPanel>();
+    layerPanel_ = std::make_unique<LayerPanel>();
+    propertiesPanel_ = std::make_unique<PropertiesPanel>();
+    materialPanel_ = std::make_unique<MaterialPanel>();
+    menuBar_ = std::make_unique<MenuBar>();
+    viewportOverlay_ = std::make_unique<ViewportOverlay>();
 
     // -----------------------------------------------------------------------
     // Load input file if provided
@@ -374,6 +415,39 @@ int ViewerApp::run() {
         glViewport(0, 0, fbWidth_, fbHeight_);
 
         render();
+
+        // --- ImGui frame ---
+        ImGuiSetup::beginFrame();
+
+        // Menu bar (inside the dockspace window which has MenuBar flag)
+        auto actions = menuBar_->draw(*renderer_);
+        if (actions.close) glfwSetWindowShouldClose(window_, GLFW_TRUE);
+        if (actions.resetCamera) camera_->reset(fbWidth_, fbHeight_);
+        if (actions.fitAll) {
+            float smin[3] = {-50.0f, -50.0f, -50.0f};
+            float smax[3] = { 50.0f,  50.0f,  50.0f};
+            if (scene_ && !scene_->objects().empty()) {
+                scene_->sceneBounds(smin, smax);
+            }
+            camera_->fitToBounds(smin[0], smin[1], smin[2],
+                                 smax[0], smax[1], smax[2],
+                                 fbWidth_, fbHeight_);
+        }
+        if (actions.isometric) camera_->setIsometric(fbWidth_, fbHeight_);
+
+        // Panels
+        objectPanel_->draw(*scene_, selectedObject_);
+        layerPanel_->draw(*scene_);
+
+        const RenderObject* sel = nullptr;
+        if (selectedObject_ >= 0 && selectedObject_ < static_cast<int>(scene_->objects().size())) {
+            sel = &scene_->objects()[selectedObject_];
+        }
+        propertiesPanel_->draw(sel);
+        materialPanel_->draw(sel);
+        viewportOverlay_->draw(*scene_, inputFile_, "Ready");
+
+        ImGuiSetup::endFrame();
 
         glfwSwapBuffers(window_);
     }

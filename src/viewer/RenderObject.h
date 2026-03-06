@@ -32,6 +32,12 @@ struct RenderObject {
     double volume = 0.0;
     double surfaceArea = 0.0;
 
+    // Material metadata for material panel
+    float materialColor[3] = {0.72f, 0.78f, 0.86f};
+    float materialMetallic = 0.0f;
+    float materialRoughness = 0.5f;
+    std::string materialPreset;
+
     void destroy() {
         if (faceVAO) { glDeleteVertexArrays(1, &faceVAO); faceVAO = 0; }
         if (faceVBO) { glDeleteBuffers(1, &faceVBO); faceVBO = 0; }

@@ -235,6 +235,13 @@ if(GLFW_FOUND)
     src/viewer/RenderScene.cpp
     src/viewer/Tessellator.cpp
     src/viewer/EnvironmentMap.cpp
+    src/viewer/ui/ImGuiSetup.cpp
+    src/viewer/ui/ObjectPanel.cpp
+    src/viewer/ui/LayerPanel.cpp
+    src/viewer/ui/PropertiesPanel.cpp
+    src/viewer/ui/MaterialPanel.cpp
+    src/viewer/ui/MenuBar.cpp
+    src/viewer/ui/ViewportOverlay.cpp
     ${OPENDCAD_LIB_SOURCES}
   )
 
@@ -243,6 +250,7 @@ if(GLFW_FOUND)
 
   target_include_directories(opendcad_viewer PRIVATE
     ${CMAKE_SOURCE_DIR}/src/viewer
+    ${CMAKE_SOURCE_DIR}/src/viewer/ui
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/core
     ${CMAKE_SOURCE_DIR}/src/geometry

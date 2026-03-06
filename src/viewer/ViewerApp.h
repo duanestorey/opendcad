@@ -12,6 +12,12 @@ class GridMesh;
 class ShaderProgram;
 class Renderer;
 class RenderScene;
+class ObjectPanel;
+class LayerPanel;
+class PropertiesPanel;
+class MaterialPanel;
+class MenuBar;
+class ViewportOverlay;
 
 class ViewerApp {
 public:
@@ -48,6 +54,16 @@ private:
     double lastMouseY_ = 0.0;
     bool rotating_ = false;
     bool panning_ = false;
+
+    // UI panels
+    std::unique_ptr<ObjectPanel> objectPanel_;
+    std::unique_ptr<LayerPanel> layerPanel_;
+    std::unique_ptr<PropertiesPanel> propertiesPanel_;
+    std::unique_ptr<MaterialPanel> materialPanel_;
+    std::unique_ptr<MenuBar> menuBar_;
+    std::unique_ptr<ViewportOverlay> viewportOverlay_;
+    int selectedObject_ = -1;
+    bool imguiInitialized_ = false;
 };
 
 } // namespace opendcad

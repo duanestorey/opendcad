@@ -51,6 +51,13 @@ int RenderScene::addShape(const std::string& name,
     BRepGProp::SurfaceProperties(shape, surfaceProps);
     obj.surfaceArea = surfaceProps.Mass();
 
+    // Copy material metadata for UI panels
+    for (int i = 0; i < 3; ++i) {
+        obj.materialColor[i] = color[i];
+    }
+    obj.materialMetallic = metallic;
+    obj.materialRoughness = roughness;
+
     // Upload geometry to GPU
     uploadToGPU(obj, tess);
 
