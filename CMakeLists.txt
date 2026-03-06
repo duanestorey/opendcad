@@ -235,6 +235,9 @@ if(GLFW_FOUND)
     src/viewer/RenderScene.cpp
     src/viewer/Tessellator.cpp
     src/viewer/EnvironmentMap.cpp
+    src/viewer/StepLoader.cpp
+    src/viewer/FileWatcher.cpp
+    src/viewer/Screenshot.cpp
     src/viewer/ui/ImGuiSetup.cpp
     src/viewer/ui/ObjectPanel.cpp
     src/viewer/ui/LayerPanel.cpp
@@ -257,6 +260,7 @@ if(GLFW_FOUND)
     ${CMAKE_SOURCE_DIR}/src/parser
     ${CMAKE_SOURCE_DIR}/src/export
     ${CMAKE_SOURCE_DIR}/src/cli
+    ${CMAKE_SOURCE_DIR}/vendor/stb
     ${GEN_DIR}
   )
 
