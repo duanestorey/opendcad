@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(OpenDCAD VERSION 0.1 LANGUAGES CXX)
+project(OpenDCAD VERSION 0.1 LANGUAGES C CXX)
 
 # Use modern C++
 set(CMAKE_CXX_STANDARD 20)
@@ -15,9 +15,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # OpenCascade — prefer imported component targets; otherwise fall back to legacy vars
 # --------------------------------------------------------------------------------------
 set(_occt_components
-  TKernel TKMath TKG2d TKG3d TKGeomBase TKGeomAlgo TKBRep TKTopAlgo TKSTL
+  TKernel TKMath TKG2d TKG3d TKGeomBase TKGeomAlgo TKBRep TKTopAlgo TKSTL TKMesh
   TKPrim TKBO TKFillet TKOffset TKShHealing
   TKSTEP TKSTEPBase TKSTEPAttr TKXSBase
+  TKLCAF TKCAF TKCDF TKXCAF TKDESTEP
 )
 find_package(OpenCASCADE QUIET COMPONENTS ${_occt_components})
 if(NOT OpenCASCADE_FOUND)
@@ -38,6 +39,7 @@ function(link_occt target)
       OpenCASCADE::TKBRep
       OpenCASCADE::TKTopAlgo
       OpenCASCADE::TKSTL
+      OpenCASCADE::TKMesh
       OpenCASCADE::TKPrim
       OpenCASCADE::TKBO
       OpenCASCADE::TKFillet
@@ -47,6 +49,11 @@ function(link_occt target)
       OpenCASCADE::TKSTEPBase
       OpenCASCADE::TKSTEPAttr
       OpenCASCADE::TKXSBase
+      OpenCASCADE::TKLCAF
+      OpenCASCADE::TKCAF
+      OpenCASCADE::TKCDF
+      OpenCASCADE::TKXCAF
+      OpenCASCADE::TKDESTEP
     )
   else()
     # Legacy variables path
@@ -148,6 +155,7 @@ set(OPENDCAD_LIB_SOURCES
   src/parser/Evaluator.cpp
   src/export/StepExporter.cpp
   src/export/StlExporter.cpp
+  src/export/ManifestExporter.cpp
 )
 
 # --------------------------------------------------------------------------------------
@@ -162,7 +170,7 @@ add_executable(opendcad
 if (MSVC)
   target_compile_options(opendcad PRIVATE /W4 /permissive-)
 else()
-  target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O3)
+  target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O2)
 endif()
 
 # Include directories
@@ -172,6 +180,7 @@ target_include_directories(opendcad PRIVATE
   ${CMAKE_SOURCE_DIR}/src/geometry
   ${CMAKE_SOURCE_DIR}/src/parser
   ${CMAKE_SOURCE_DIR}/src/export
+  ${CMAKE_SOURCE_DIR}/src/cli
   ${GEN_DIR}
 )
 
@@ -183,9 +192,18 @@ link_occt(opendcad)
 target_sources(opendcad PRIVATE ${GENERATED_SOURCES})
 add_dependencies(opendcad generate_antlr)
 
-# --------------------------------------------------------------------------------------
-# Viewer (GLFW + OpenGL) — optional
-# --------------------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+# Vendor: glad (OpenGL 4.1 core loader)
+# ──────────────────────────────────────────────────────────────────────
+add_library(glad STATIC vendor/glad/src/glad.c)
+target_include_directories(glad PUBLIC vendor/glad/include)
+if(NOT MSVC)
+  target_compile_options(glad PRIVATE -w)
+endif()
+
+# ──────────────────────────────────────────────────────────────────────
+# Viewer (GLFW + OpenGL 4.1) — optional
+# ──────────────────────────────────────────────────────────────────────
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
   pkg_check_modules(GLFW QUIET IMPORTED_TARGET glfw3)
@@ -195,28 +213,72 @@ if(PkgConfig_FOUND)
 endif()
 
 if(GLFW_FOUND)
+  # Vendor: Dear ImGui (docking branch)
+  file(GLOB IMGUI_SOURCES vendor/imgui/*.cpp
+       vendor/imgui/backends/imgui_impl_glfw.cpp
+       vendor/imgui/backends/imgui_impl_opengl3.cpp)
+  add_library(imgui STATIC ${IMGUI_SOURCES})
+  target_include_directories(imgui PUBLIC vendor/imgui vendor/imgui/backends)
+  target_link_libraries(imgui PRIVATE PkgConfig::GLFW glad)
+  target_compile_definitions(imgui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+  if(NOT MSVC)
+    target_compile_options(imgui PRIVATE -w)
+  endif()
+
   add_executable(opendcad_viewer
-    src/viewer/viewer.cpp
+    src/viewer/viewer_main.cpp
+    src/viewer/ViewerApp.cpp
+    src/viewer/Camera.cpp
+    src/viewer/ShaderProgram.cpp
+    src/viewer/GridMesh.cpp
+    src/viewer/Renderer.cpp
+    src/viewer/RenderScene.cpp
+    src/viewer/Tessellator.cpp
+    src/viewer/EnvironmentMap.cpp
+    src/viewer/StepLoader.cpp
+    src/viewer/FileWatcher.cpp
+    src/viewer/Screenshot.cpp
+    src/viewer/ui/ImGuiSetup.cpp
+    src/viewer/ui/ObjectPanel.cpp
+    src/viewer/ui/LayerPanel.cpp
+    src/viewer/ui/PropertiesPanel.cpp
+    src/viewer/ui/MaterialPanel.cpp
+    src/viewer/ui/MenuBar.cpp
+    src/viewer/ui/ViewportOverlay.cpp
+    ${OPENDCAD_LIB_SOURCES}
   )
+
+  target_sources(opendcad_viewer PRIVATE ${GENERATED_SOURCES})
+  add_dependencies(opendcad_viewer generate_antlr)
 
   target_include_directories(opendcad_viewer PRIVATE
     ${CMAKE_SOURCE_DIR}/src/viewer
+    ${CMAKE_SOURCE_DIR}/src/viewer/ui
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/core
+    ${CMAKE_SOURCE_DIR}/src/geometry
+    ${CMAKE_SOURCE_DIR}/src/parser
+    ${CMAKE_SOURCE_DIR}/src/export
+    ${CMAKE_SOURCE_DIR}/src/cli
+    ${CMAKE_SOURCE_DIR}/vendor/stb
+    ${GEN_DIR}
   )
+
+  target_link_libraries(opendcad_viewer PRIVATE glad imgui PkgConfig::GLFW antlr4_shared)
+  link_occt(opendcad_viewer)
 
   if (APPLE)
     target_link_libraries(opendcad_viewer PRIVATE
-      PkgConfig::GLFW
       "-framework OpenGL"
       "-framework Cocoa" "-framework IOKit" "-framework CoreVideo"
     )
   else()
     find_package(OpenGL REQUIRED)
-    target_link_libraries(opendcad_viewer PRIVATE PkgConfig::GLFW OpenGL::GL)
+    target_link_libraries(opendcad_viewer PRIVATE OpenGL::GL)
   endif()
 
   target_compile_features(opendcad_viewer PRIVATE cxx_std_20)
-  target_compile_options(opendcad_viewer PRIVATE -Wall -Wextra -Wpedantic)
-  link_occt(opendcad_viewer)
+  target_compile_options(opendcad_viewer PRIVATE -Wall -Wextra -Wpedantic -O2)
 else()
   message(STATUS "GLFW not found — skipping opendcad_viewer")
 endif()
@@ -242,6 +304,10 @@ add_executable(opendcad_tests
   tests/test_shape_registry.cpp
   tests/test_evaluator.cpp
   tests/test_face_modeling.cpp
+  tests/test_metadata_export.cpp
+  tests/test_cli.cpp
+  tests/test_tessellator.cpp
+  src/viewer/Tessellator.cpp
   ${OPENDCAD_LIB_SOURCES}
 )
 
@@ -251,6 +317,8 @@ target_include_directories(opendcad_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src/geometry
   ${CMAKE_SOURCE_DIR}/src/parser
   ${CMAKE_SOURCE_DIR}/src/export
+  ${CMAKE_SOURCE_DIR}/src/cli
+  ${CMAKE_SOURCE_DIR}/src/viewer
   ${GEN_DIR}
 )
 

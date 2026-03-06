@@ -20,11 +20,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --pre
 # Build (skip viewer on Linux — has pre-existing GL errors)
 cmake --build build --config Release --target opendcad opendcad_tests
 
-# Run tests (223 tests, GoogleTest)
+# Run tests (270 tests, GoogleTest)
 ./build/bin/opendcad_tests
 
-# Run a script
-./build/bin/opendcad examples/battery.dcad build/bin
+# Run a script (outputs to build/ by default)
+./build/bin/opendcad examples/battery.dcad
+
+# Common CLI options
+./build/bin/opendcad model.dcad -o output/           # custom output dir
+./build/bin/opendcad model.dcad --fmt step            # STEP+JSON only (no STL)
+./build/bin/opendcad model.dcad -q draft              # fast preview quality
+./build/bin/opendcad model.dcad -q production         # manufacturing quality
+./build/bin/opendcad model.dcad -e lid                # export only "lid"
+./build/bin/opendcad model.dcad --list-exports        # print export names
+./build/bin/opendcad model.dcad --dry-run             # evaluate, write nothing
+./build/bin/opendcad model.dcad --quiet               # suppress banner/info
 
 # Clean rebuild (when grammar or CMake changes)
 rm -rf build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release --target opendcad opendcad_tests
@@ -37,7 +47,9 @@ rm -rf build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build 
 ```
 grammar/OpenDCAD.g4          — ANTLR4 grammar (single source of truth for syntax)
 src/
-  main.cpp                   — CLI entry point, loads .dcad, runs evaluator, exports
+  main.cpp                   — CLI entry point with argument parsing, export loop
+  cli/
+    CliOptions.h             — CLI argument parser, quality presets, CliOptions struct
   parser/
     Evaluator.h/.cpp         — Visitor that walks parse tree, evaluates to Values
     Value.h/.cpp             — 14 value types (NUMBER, STRING, BOOL, VECTOR, SHAPE, NIL,
@@ -56,13 +68,14 @@ src/
     EdgeSelector.h/.cpp      — Edge selection and filtering
     Color.h                  — Color (RGBA) and Material (PBR) structs
   export/
-    StepExporter.h/.cpp      — STEP file output
-    StlExporter.h/.cpp       — STL file output
+    StepExporter.h/.cpp      — STEP file output (with XDE color metadata)
+    StlExporter.h/.cpp       — STL file output (returns StlResult with triangle count)
+    ManifestExporter.h/.cpp  — JSON manifest output (with build metrics)
   viewer/viewer.cpp          — GLFW + OpenGL 3D viewer (standalone)
   core/
     output.h/.cpp            — ANSI terminal colors
     Timer.h/.cpp             — Performance timing
-tests/                       — GoogleTest test files (223 tests across 10 suites)
+tests/                       — GoogleTest test files (270 tests across 12 suites)
 examples/                    — Example .dcad scripts
   lib/                       — Library files for import
 docs/plan/                   — Design documents and phase plans
@@ -103,7 +116,29 @@ Method chains (`.method()`) dispatch via ShapeRegistry's typed method system:
 
 ### Export Model
 
-`export shape as name;` names a shape as a script output. Currently `main.cpp` writes STEP+STL for each export. The design intent is for the CLI to control format/quality — exports are the contract between script and toolchain.
+`export shape as name;` names a shape as a script output. The CLI controls which formats are written and at what quality:
+
+- **STEP + JSON always** — STEP is master geometry; JSON carries metadata (color, material, tags, build metrics)
+- **STL optional** — on by default, skip with `--fmt step`
+- **Quality presets** — `draft` (fast, no healing), `standard` (default), `production` (fine mesh, full healing)
+- **Export filter** — `--export name` builds only named exports; default: all
+
+### CLI Interface
+
+```
+opendcad <input.dcad> [options]
+
+  -o, --output <dir>        Output directory (default: build/)
+  -f, --fmt <formats>       step, stl, or step,stl (default: step,stl)
+  -q, --qual <preset>       draft, standard, production (default: standard)
+  -e, --export <name>       Build only this export (repeatable)
+      --deflection <value>  Override STL mesh deflection
+      --angle <value>       Override STL angular deflection
+      --list-exports        Print export names, exit
+      --dry-run             Evaluate, report exports, write nothing
+      --quiet               Suppress banner and info
+      --help / --version
+```
 
 ## DSL Language Reference
 
@@ -111,7 +146,7 @@ See `docs/plan/language-reference.md` for the complete specification.
 
 ## Conventions
 
-- **C++20** with strict warnings (`-Wall -Wextra -Wpedantic -O3`)
+- **C++20** with strict warnings (`-Wall -Wextra -Wpedantic -O2`)
 - All shapes use `ShapePtr` (`std::shared_ptr<Shape>`) — no raw pointers for geometry
 - `enable_shared_from_this` requires `std::make_shared<T>(...)` everywhere
 - Fluent API pattern — all Shape methods return `ShapePtr` for chaining

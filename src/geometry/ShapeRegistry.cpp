@@ -842,6 +842,31 @@ void ShapeRegistry::registerDefaults() {
             shape->setMaterial(args[0]->asMaterial());
             return Value::makeShape(shape);
         });
+
+    registerTypedMethod(ValueType::SHAPE, "tag",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::STRING)
+                throw EvalError("tag() requires a string argument");
+            auto shape = self->asShape();
+            shape->addTag(args[0]->asString());
+            return Value::makeShape(shape);
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "tags",
+        [](ValuePtr self, const std::vector<ValuePtr>& /*args*/) -> ValuePtr {
+            auto shape = self->asShape();
+            std::vector<ValuePtr> tagList;
+            for (const auto& t : shape->tags())
+                tagList.push_back(Value::makeString(t));
+            return Value::makeList(tagList);
+        });
+
+    registerTypedMethod(ValueType::SHAPE, "hasTag",
+        [](ValuePtr self, const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty() || args[0]->type() != ValueType::STRING)
+                throw EvalError("hasTag() requires a string argument");
+            return Value::makeBool(self->asShape()->hasTag(args[0]->asString()));
+        });
 }
 
 } // namespace opendcad

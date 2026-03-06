@@ -345,15 +345,26 @@ antlrcpp::Any Evaluator::visitExportStmt(OpenDCADParser::ExportStmtContext* ctx)
         return Value::makeNil();
     }
 
-    ShapePtr shape;
-    try {
-        shape = value->asShape();
-    } catch (const EvalError&) {
-        throw EvalError("export '" + name + "' must be a shape, got " + value->typeName(),
-                        locFrom(ctx));
+    std::vector<ShapePtr> shapes;
+    if (value->type() == ValueType::LIST) {
+        const auto& items = value->asList();
+        if (items.empty())
+            throw EvalError("export '" + name + "' list must not be empty", locFrom(ctx));
+        for (size_t i = 0; i < items.size(); ++i) {
+            if (items[i]->type() != ValueType::SHAPE)
+                throw EvalError("export '" + name + "' list element " + std::to_string(i) +
+                                " must be a shape, got " + items[i]->typeName(), locFrom(ctx));
+            shapes.push_back(items[i]->asShape());
+        }
+    } else if (value->type() == ValueType::SHAPE) {
+        shapes.push_back(value->asShape());
+    } else {
+        throw EvalError("export '" + name + "' must be a shape or list of shapes, got " +
+                        value->typeName(), locFrom(ctx));
     }
-    exports_.push_back({name, shape});
-    DEBUG_INFO("export " << name);
+
+    exports_.push_back({name, std::move(shapes)});
+    DEBUG_INFO("export " << name << " (" << exports_.back().shapes.size() << " shape(s))");
     return Value::makeNil();
 }
 
@@ -855,17 +866,26 @@ antlrcpp::Any Evaluator::visitPrimary(OpenDCADParser::PrimaryContext* ctx) {
 }
 
 antlrcpp::Any Evaluator::visitVectorLiteral(OpenDCADParser::VectorLiteralContext* ctx) {
-    std::vector<double> components;
+    // Evaluate all elements first
+    std::vector<ValuePtr> values;
     for (auto* expr : ctx->expr()) {
-        ValuePtr val = toValue(visit(expr));
-        try {
-            components.push_back(val->asNumber());
-        } catch (const EvalError&) {
-            throw EvalError("vector component must be a number, got " + val->typeName(),
-                            locFrom(ctx));
-        }
+        values.push_back(toValue(visit(expr)));
     }
-    return ValuePtr(Value::makeVector(components));
+
+    // If all elements are numeric, create a vector; otherwise create a list
+    bool allNumeric = true;
+    for (const auto& v : values) {
+        if (v->type() != ValueType::NUMBER) { allNumeric = false; break; }
+    }
+
+    if (allNumeric) {
+        std::vector<double> components;
+        for (const auto& v : values)
+            components.push_back(v->asNumber());
+        return ValuePtr(Value::makeVector(components));
+    }
+
+    return ValuePtr(Value::makeList(values));
 }
 
 antlrcpp::Any Evaluator::visitListLiteral(OpenDCADParser::ListLiteralContext* ctx) {
