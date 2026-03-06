@@ -213,6 +213,18 @@ if(PkgConfig_FOUND)
 endif()
 
 if(GLFW_FOUND)
+  # Vendor: Dear ImGui (docking branch)
+  file(GLOB IMGUI_SOURCES vendor/imgui/*.cpp
+       vendor/imgui/backends/imgui_impl_glfw.cpp
+       vendor/imgui/backends/imgui_impl_opengl3.cpp)
+  add_library(imgui STATIC ${IMGUI_SOURCES})
+  target_include_directories(imgui PUBLIC vendor/imgui vendor/imgui/backends)
+  target_link_libraries(imgui PRIVATE PkgConfig::GLFW glad)
+  target_compile_definitions(imgui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+  if(NOT MSVC)
+    target_compile_options(imgui PRIVATE -w)
+  endif()
+
   add_executable(opendcad_viewer
     src/viewer/viewer_main.cpp
     src/viewer/ViewerApp.cpp
@@ -240,7 +252,7 @@ if(GLFW_FOUND)
     ${GEN_DIR}
   )
 
-  target_link_libraries(opendcad_viewer PRIVATE glad PkgConfig::GLFW antlr4_shared)
+  target_link_libraries(opendcad_viewer PRIVATE glad imgui PkgConfig::GLFW antlr4_shared)
   link_occt(opendcad_viewer)
 
   if (APPLE)
