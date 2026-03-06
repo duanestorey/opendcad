@@ -221,3 +221,30 @@ TEST(CliTest, FullCommand) {
     EXPECT_TRUE(opts.exportNames.count("body"));
     EXPECT_TRUE(opts.quiet);
 }
+
+// =============================================================================
+// View subcommand
+// =============================================================================
+
+TEST(CliTest, ViewSubcommand) {
+    auto opts = parse({"opendcad", "view", "model.dcad"});
+    EXPECT_TRUE(opts.viewMode);
+    EXPECT_EQ(opts.inputFile, "model.dcad");
+}
+
+TEST(CliTest, ViewSubcommandMissingFile) {
+    auto opts = parse({"opendcad", "view"});
+    EXPECT_TRUE(opts.showHelp);
+}
+
+TEST(CliTest, ViewNotConfusedWithFile) {
+    // "view" as first arg is subcommand, not a filename
+    auto opts = parse({"opendcad", "view", "test.dcad"});
+    EXPECT_TRUE(opts.viewMode);
+    EXPECT_EQ(opts.inputFile, "test.dcad");
+}
+
+TEST(CliTest, RegularInputNotViewMode) {
+    auto opts = parse({"opendcad", "model.dcad"});
+    EXPECT_FALSE(opts.viewMode);
+}

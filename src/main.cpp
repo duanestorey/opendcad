@@ -86,6 +86,13 @@ int main(int argc, char* argv[]) {
         return opts.inputFile.empty() ? 1 : 0;
     }
 
+    // "opendcad view <file>" — launch the viewer binary as a subprocess
+    if (opts.viewMode) {
+        auto viewerPath = std::filesystem::path(argv[0]).parent_path() / "opendcad_viewer";
+        std::string cmd = viewerPath.string() + " " + opts.inputFile;
+        return std::system(cmd.c_str());
+    }
+
     debugQuiet() = opts.quiet;
 
     if (!opts.quiet) writeLogo();

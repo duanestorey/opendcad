@@ -5,6 +5,8 @@
 #include <set>
 #include <iostream>
 #include <cstring>
+#include <cstdlib>
+#include <filesystem>
 
 namespace opendcad {
 
@@ -41,6 +43,7 @@ struct CliOptions {
     bool quiet = false;
     bool showHelp = false;
     bool showVersion = false;
+    bool viewMode = false;
 
     QualityParams getQualityParams() const {
         auto p = qualityFor(quality);
@@ -53,6 +56,7 @@ struct CliOptions {
 inline void printUsage(const char* prog) {
     std::cout
         << "Usage: " << prog << " <input.dcad> [options]\n"
+        << "       " << prog << " view <input.dcad>    Launch 3D viewer\n"
         << "\n"
         << "Options:\n"
         << "  -o, --output <dir>        Output directory (default: build/)\n"
@@ -77,9 +81,21 @@ inline CliOptions parseArgs(int argc, char* argv[]) {
         return opts;
     }
 
+    // Check for "view" subcommand as first argument
+    int startArg = 1;
+    if (std::string(argv[1]) == "view") {
+        opts.viewMode = true;
+        startArg = 2;  // shift remaining args
+        if (argc < 3) {
+            std::cerr << "Error: 'view' subcommand requires an input file\n";
+            opts.showHelp = true;
+            return opts;
+        }
+    }
+
     bool fmtExplicit = false;
 
-    for (int i = 1; i < argc; ++i) {
+    for (int i = startArg; i < argc; ++i) {
         std::string arg = argv[i];
 
         if (arg == "--help" || arg == "-h") {
