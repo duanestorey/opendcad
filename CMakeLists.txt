@@ -18,6 +18,7 @@ set(_occt_components
   TKernel TKMath TKG2d TKG3d TKGeomBase TKGeomAlgo TKBRep TKTopAlgo TKSTL
   TKPrim TKBO TKFillet TKOffset TKShHealing
   TKSTEP TKSTEPBase TKSTEPAttr TKXSBase
+  TKLCAF TKCAF TKCDF TKXCAF TKDESTEP
 )
 find_package(OpenCASCADE QUIET COMPONENTS ${_occt_components})
 if(NOT OpenCASCADE_FOUND)
@@ -47,6 +48,11 @@ function(link_occt target)
       OpenCASCADE::TKSTEPBase
       OpenCASCADE::TKSTEPAttr
       OpenCASCADE::TKXSBase
+      OpenCASCADE::TKLCAF
+      OpenCASCADE::TKCAF
+      OpenCASCADE::TKCDF
+      OpenCASCADE::TKXCAF
+      OpenCASCADE::TKDESTEP
     )
   else()
     # Legacy variables path
@@ -148,6 +154,7 @@ set(OPENDCAD_LIB_SOURCES
   src/parser/Evaluator.cpp
   src/export/StepExporter.cpp
   src/export/StlExporter.cpp
+  src/export/ManifestExporter.cpp
 )
 
 # --------------------------------------------------------------------------------------
@@ -162,7 +169,7 @@ add_executable(opendcad
 if (MSVC)
   target_compile_options(opendcad PRIVATE /W4 /permissive-)
 else()
-  target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O3)
+  target_compile_options(opendcad PRIVATE -Wall -Wextra -Wpedantic -O2)
 endif()
 
 # Include directories
@@ -172,6 +179,7 @@ target_include_directories(opendcad PRIVATE
   ${CMAKE_SOURCE_DIR}/src/geometry
   ${CMAKE_SOURCE_DIR}/src/parser
   ${CMAKE_SOURCE_DIR}/src/export
+  ${CMAKE_SOURCE_DIR}/src/cli
   ${GEN_DIR}
 )
 
@@ -242,6 +250,8 @@ add_executable(opendcad_tests
   tests/test_shape_registry.cpp
   tests/test_evaluator.cpp
   tests/test_face_modeling.cpp
+  tests/test_metadata_export.cpp
+  tests/test_cli.cpp
   ${OPENDCAD_LIB_SOURCES}
 )
 
@@ -251,6 +261,7 @@ target_include_directories(opendcad_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src/geometry
   ${CMAKE_SOURCE_DIR}/src/parser
   ${CMAKE_SOURCE_DIR}/src/export
+  ${CMAKE_SOURCE_DIR}/src/cli
   ${GEN_DIR}
 )
 

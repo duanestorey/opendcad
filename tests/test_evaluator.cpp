@@ -76,7 +76,7 @@ TEST_F(EvaluatorTest, ExportShape) {
     auto evaluator = parseAndEvaluate("export box(1,1,1) as test;");
     EXPECT_EQ(evaluator.exports().size(), 1u);
     EXPECT_EQ(evaluator.exports()[0].name, "test");
-    EXPECT_TRUE(evaluator.exports()[0].shape->isValid());
+    EXPECT_TRUE(evaluator.exports()[0].shapes[0]->isValid());
 }
 
 TEST_F(EvaluatorTest, UndefinedVariableThrows) {

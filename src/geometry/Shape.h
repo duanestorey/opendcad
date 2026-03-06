@@ -104,10 +104,19 @@ public:
     ColorPtr color() const { return color_; }
     MaterialPtr material() const { return material_; }
 
+    // --- Tags ---
+    void addTag(const std::string& tag) { tags_.push_back(tag); }
+    bool hasTag(const std::string& tag) const {
+        for (const auto& t : tags_) if (t == tag) return true;
+        return false;
+    }
+    const std::vector<std::string>& tags() const { return tags_; }
+
 private:
     TopoDS_Shape mShape;
     ColorPtr color_;
     MaterialPtr material_;
+    std::vector<std::string> tags_;
 };
 
 } // namespace opendcad

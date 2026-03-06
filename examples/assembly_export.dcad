@@ -1,0 +1,29 @@
+// Assembly export example — demonstrates per-component metadata
+// Each shape retains its own color, material, and tags
+//
+// Note: transforms (translate, rotate, etc.) create new shapes without metadata.
+// Apply color/material/tags after the final transform.
+
+let housing = box(80, 60, 20)
+    .fillet(2)
+    .color(color(80, 80, 90))
+    .material(ABS_BLACK)
+    .tag("enclosure");
+
+let lid = box(80, 60, 3)
+    .z(11.5)
+    .color(color(100, 100, 110))
+    .material(ABS_BLACK)
+    .tag("enclosure");
+
+// Apply metadata after final positioning
+let bolt1 = cylinder(3, 15).translate([30, 20, 0]).material(STEEL).tag("fastener");
+let bolt2 = cylinder(3, 15).translate([-30, 20, 0]).material(STEEL).tag("fastener");
+let bolt3 = cylinder(3, 15).translate([30, -20, 0]).material(STEEL).tag("fastener");
+let bolt4 = cylinder(3, 15).translate([-30, -20, 0]).material(STEEL).tag("fastener");
+
+// Assembly export — all shapes in one STEP, metadata in JSON sidecar
+export [housing, lid, bolt1, bolt2, bolt3, bolt4] as device;
+
+// Single shape export still works
+export housing as housing_only;

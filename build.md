@@ -71,22 +71,23 @@ build/bin/opendcad
 ### 5. ▶️ Run the Program
 
 ```bash
-./build/bin/opendcad
+# Basic usage — outputs STEP + STL + JSON to build/
+./build/bin/opendcad examples/battery.dcad
+
+# Custom output directory
+./build/bin/opendcad examples/battery.dcad -o output/
+
+# STEP only (no STL), production quality
+./build/bin/opendcad examples/battery.dcad --fmt step -q production
+
+# List available exports without building
+./build/bin/opendcad examples/battery.dcad --list-exports
+
+# See all options
+./build/bin/opendcad --help
 ```
 
-Expected output:
-```
-OpenDCAD version [1.00.00]
-OpenDCAD + OCCT test (OCCT 7.x.x)
-Wrote STEP: build/bin/opendcad_test.step
-Wrote STL:  build/bin/opendcad_test.stl
-```
-
-You should now see two output files:
-```
-build/bin/opendcad_test.step
-build/bin/opendcad_test.stl
-```
+Output files per export: `name.step`, `name.stl` (optional), `name.json` (metadata manifest).
 
 Open them in **FreeCAD**, **CAD Assistant**, or any STEP/STL viewer to confirm geometry.
 
@@ -111,7 +112,7 @@ cmake --build build --config Release
 | 1 | `brew install cmake antlr opencascade` | Install dependencies |
 | 2 | `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix opencascade)"` | Configure build system |
 | 3 | `cmake --build build --config Release` | Compile project |
-| 4 | `./build/bin/opendcad` | Run test executable |
+| 4 | `./build/bin/opendcad examples/battery.dcad` | Run a script |
 
 ---
 

@@ -125,9 +125,9 @@ Wrote STL:  build/bin/opendcad_test.stl
    - `.union()` → `BRepAlgoAPI_Fuse`
    - `.subtract()` → `BRepAlgoAPI_Cut`
 
-3. **Command-Line Interface**
+3. **Command-Line Interface** *(completed — Phase 9)*
    ```
-   ./opendcad input.ocd --out step
+   opendcad model.dcad -o output/ --fmt step -q production -e lid --quiet
    ```
 
 4. **Preview Mode**

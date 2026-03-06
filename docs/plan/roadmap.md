@@ -28,75 +28,30 @@ comparison and logical operators, `if`/`else`, `for`/`while`, lists, `vec()`, fu
 default/named args, `return`, closures, `import`, color/material types, built-in stdlib
 (17 colors, 17 materials).
 
+### Phase 9: CLI Refactor & Export Control
+Full CLI argument parsing with format/quality/export control:
+- `-o`/`--output`, `-f`/`--fmt` (step, stl, step,stl), `-q`/`--qual` (draft, standard, production)
+- `-e`/`--export` (repeatable filter), `--deflection`/`--angle` overrides
+- `--list-exports`, `--dry-run`, `--quiet`, `--help`, `--version`
+- JSON manifest with build metrics (timestamp, duration, quality, versions, triangle counts)
+- Quality presets: draft (deflection=0.1, no healing), standard (0.01, healing), production (0.001, healing)
+- STEP + JSON always written; STL optional (on by default)
+- Default output directory: `build/`
+- Global debug quiet flag for `--quiet`
+
 ---
 
-## Next: Phase 9 — CLI Refactor & Export Control
+## Next: Phase 9b — Project System (`opendcad.yaml`)
 
-**Goal:** Separate geometry evaluation from file output. The evaluator produces named exports; the CLI decides what to write.
-
-### 9.1 CLI Argument Parsing
-- `opendcad <input.dcad> [options]`
-- `--output <dir>` — output directory (default: `.`)
-- `--format step,stl,both` — output format(s) (default: `both`)
-- `--quality draft|standard|production` — mesh quality presets
-  - `draft`: STL deflection=0.1, no healing
-  - `standard`: STL deflection=0.01, healing (current behavior)
-  - `production`: STL deflection=0.001, full healing, fine tessellation
-- `--export <name>` — build only a specific export (can repeat)
-- `--list-exports` — print export names and exit (no file output)
-- `--dry-run` — evaluate script, report exports, but write nothing
-
-### 9.2 Decouple Evaluator from File I/O
-- `main.cpp` currently hardcodes STEP+STL for every export
-- Refactor: evaluator returns `vector<ExportEntry>` (already does), main applies CLI filters and writes requested formats
-- Export entries carry color/material metadata for STEP color embedding
-
-### 9.3 STEP Color Embedding
-- OCCT supports per-shape colors in STEP via `XCAFDoc_ColorTool`
-- When shapes have `.color()` metadata, embed it in STEP output
-- This makes imported STEP files render correctly in FreeCAD/Fusion360
-
-### 9.4 Project System (`opendcad.yaml`)
 A built-in project/build system so users don't need external Make/CMake tooling.
 
-- `opendcad init` — scaffolds a new project:
-  ```
-  my-project/
-    opendcad.yaml
-    src/
-      main.dcad
-    lib/
-    build/
-  ```
-- `opendcad.yaml` — simple project config:
-  ```yaml
-  project:
-    name: electronics-enclosure
-    version: 1.0
-
-  builds:
-    - source: src/enclosure.dcad
-      format: [step, stl]
-      quality: production
-      dfm: fdm
-
-    - source: src/enclosure.dcad
-      export: lid
-      format: [stl]
-      quality: draft
-
-    - source: src/mounting_plate.dcad
-      format: [step]
-  ```
-- `opendcad build` — finds `opendcad.yaml` in current dir (or walks up), builds all targets
-- `opendcad build --target lid` — build a specific target
-- `opendcad build --quality draft` — override quality for all targets
+- `opendcad init` — scaffolds a new project
+- `opendcad.yaml` — simple project config with builds, formats, quality
+- `opendcad build` — builds all targets from config
 - `opendcad watch` — watch source files and rebuild on change
 - `opendcad clean` — remove build outputs
-- YAML chosen for simplicity — no learning curve, every developer knows it
-- Cross-platform by definition (runs wherever OpenDCAD runs, no Make/CMake dependency)
 
-**Files:** `src/main.cpp`, `src/export/StepExporter.cpp`, `src/export/StlExporter.cpp`, new `src/project/ProjectConfig.h/.cpp`
+**Files:** new `src/project/ProjectConfig.h/.cpp`
 **Dependencies:** yaml-cpp or a lightweight YAML parser
 
 ---
@@ -311,11 +266,11 @@ const injection_profile = dfm_profile("Injection Molding",
 
 | Priority | Phase | Rationale |
 |----------|-------|-----------|
-| 1 | **Phase 9: CLI Refactor** | Foundation for everything else — all other phases need CLI flexibility |
-| 2 | **Phase 12: DFM Analysis** | High-impact differentiator, no open-source CAD tool does this well |
-| 3 | **Phase 10: Viewer Overhaul** | Visual impact, PBR + layers makes the tool compelling to share |
-| 4 | **Phase 11: 2D Drawings** | Manufacturing workflow completeness |
-| 5 | **Phase 13: Standard Library** | Community growth, practical utility |
-| 6 | **Phase 14: AI/DX** | Multiplier on all other features |
+| ~~1~~ | ~~**Phase 9: CLI Refactor**~~ | ~~Done~~ |
+| 1 | **Phase 12: DFM Analysis** | High-impact differentiator, no open-source CAD tool does this well |
+| 2 | **Phase 10: Viewer Overhaul** | Visual impact, PBR + layers makes the tool compelling to share |
+| 3 | **Phase 11: 2D Drawings** | Manufacturing workflow completeness |
+| 4 | **Phase 13: Standard Library** | Community growth, practical utility |
+| 5 | **Phase 14: AI/DX** | Multiplier on all other features |
 
-Each phase is independently valuable and shippable. No phase blocks another (except Phase 9 which should go first since it's small and foundational).
+Each phase is independently valuable and shippable.

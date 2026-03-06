@@ -19,7 +19,7 @@ namespace opendcad {
 
 struct ExportEntry {
     std::string name;
-    ShapePtr shape;
+    std::vector<ShapePtr> shapes;
 };
 
 // Exception used to unwind from return statements inside functions

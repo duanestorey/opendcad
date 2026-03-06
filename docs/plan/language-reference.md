@@ -169,9 +169,13 @@ export shape as name;
 // Multiple exports per file
 export lid as lid;
 export base as base;
+
+// Assembly export — list of shapes with per-component metadata
+export [housing, bolt1, bolt2] as device;
 ```
 
-`export` names a shape as a script output. The CLI decides what format to write.
+`export` names a shape (or list of shapes) as a script output. The CLI writes STEP, STL, and a JSON metadata manifest for each export. Assembly exports (lists) preserve per-shape color, material, and tags in the STEP file and JSON manifest.
+
 When a file is imported, its exports make shapes available by name but don't produce files.
 
 ## Color & Material
@@ -202,6 +206,22 @@ let bolt = cylinder(3, 12).material(steel);
 let body = box(80, 60, 20).material(ALUMINUM);
 ```
 
+## Tags
+
+```dcad
+// Tag shapes for grouping/filtering (multiple tags per shape)
+let housing = box(80, 60, 20).tag("enclosure").tag("structural");
+let bolt = cylinder(3, 15).tag("fastener");
+
+// Query tags
+let tags = housing.tags();        // returns list: ["enclosure", "structural"]
+let check = housing.hasTag("enclosure");  // returns true
+```
+
+Tags are string labels for custom grouping. They appear in the JSON metadata manifest and can be used by the viewer to filter objects by category.
+
+**Note:** Transforms (translate, rotate, etc.) and boolean ops (fuse, cut) create new shapes without metadata. Apply color, material, and tags after the final transform.
+
 ## Comments
 
 ```dcad
@@ -224,16 +244,28 @@ let body = box(80, 60, 20).material(ALUMINUM);
 
 ## Shape Factories (via ShapeRegistry)
 
+### Coordinate System
+
+Most primitives are **centered in X and Y** but **grounded at Z=0** (bottom face sits on the XY plane). `sphere` and `torus` are fully centered at the origin. Use `.z(h/2)` to center a grounded shape vertically, or `.z(-h/2)` to lower a centered shape to the ground plane.
+
+| Primitive | X extent | Y extent | Z extent |
+|-----------|----------|----------|----------|
+| `box(w, d, h)` | -w/2 to +w/2 | -d/2 to +d/2 | 0 to h |
+| `cylinder(r, h)` | -r to +r | -r to +r | 0 to h |
+| `cone(r1, r2, h)` | -max(r) to +max(r) | same | 0 to h |
+| `sphere(r)` | -r to +r | -r to +r | -r to +r |
+| `torus(r1, r2)` | -(r1+r2) to +(r1+r2) | same | -r2 to +r2 |
+
 ### 3D Primitives
 | Factory | Args | Description |
 |---------|------|-------------|
-| `box(w, d, h)` | width, depth, height | Rectangular solid |
-| `cylinder(r, h)` | radius, height | Cylinder |
-| `sphere(r)` | radius | Sphere |
-| `cone(r1, r2, h)` | bottom radius, top radius, height | Cone/frustum |
+| `box(w, d, h)` | width, depth, height | Rectangular solid, XY-centered, Z-grounded |
+| `cylinder(r, h)` | radius, height | Cylinder, axis along Z, Z-grounded |
+| `sphere(r)` | radius | Sphere, centered at origin |
+| `cone(r1, r2, h)` | bottom radius, top radius, height | Cone/frustum, Z-grounded |
 | `wedge(dx, dy, dz, ltx)` | x-size, y-size, z-size, top-x-size | Wedge/ramp |
-| `torus(r1, r2)` | major radius, minor radius | Torus |
-| `bin(w, d, h, t)` | width, depth, height, wall thickness | Hollow box |
+| `torus(r1, r2)` | major radius, minor radius | Torus, centered at origin |
+| `bin(w, d, h, t)` | width, depth, height, wall thickness | Hollow box, XY-centered, Z-grounded |
 
 ### 2D Primitives
 | Factory | Args | Description |
