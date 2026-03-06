@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(OpenDCAD VERSION 0.1 LANGUAGES CXX)
+project(OpenDCAD VERSION 0.1 LANGUAGES C CXX)
 
 # Use modern C++
 set(CMAKE_CXX_STANDARD 20)
@@ -191,9 +191,18 @@ link_occt(opendcad)
 target_sources(opendcad PRIVATE ${GENERATED_SOURCES})
 add_dependencies(opendcad generate_antlr)
 
-# --------------------------------------------------------------------------------------
-# Viewer (GLFW + OpenGL) — optional
-# --------------------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────
+# Vendor: glad (OpenGL 4.1 core loader)
+# ──────────────────────────────────────────────────────────────────────
+add_library(glad STATIC vendor/glad/src/glad.c)
+target_include_directories(glad PUBLIC vendor/glad/include)
+if(NOT MSVC)
+  target_compile_options(glad PRIVATE -w)
+endif()
+
+# ──────────────────────────────────────────────────────────────────────
+# Viewer (GLFW + OpenGL 4.1) — optional
+# ──────────────────────────────────────────────────────────────────────
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
   pkg_check_modules(GLFW QUIET IMPORTED_TARGET glfw3)
@@ -204,27 +213,33 @@ endif()
 
 if(GLFW_FOUND)
   add_executable(opendcad_viewer
-    src/viewer/viewer.cpp
+    src/viewer/viewer_main.cpp
+    src/viewer/ViewerApp.cpp
+    src/viewer/Camera.cpp
+    src/viewer/ShaderProgram.cpp
+    src/viewer/GridMesh.cpp
   )
 
   target_include_directories(opendcad_viewer PRIVATE
     ${CMAKE_SOURCE_DIR}/src/viewer
+    ${CMAKE_SOURCE_DIR}/src/core
+    ${CMAKE_SOURCE_DIR}/src/geometry
   )
+
+  target_link_libraries(opendcad_viewer PRIVATE glad PkgConfig::GLFW)
 
   if (APPLE)
     target_link_libraries(opendcad_viewer PRIVATE
-      PkgConfig::GLFW
       "-framework OpenGL"
       "-framework Cocoa" "-framework IOKit" "-framework CoreVideo"
     )
   else()
     find_package(OpenGL REQUIRED)
-    target_link_libraries(opendcad_viewer PRIVATE PkgConfig::GLFW OpenGL::GL)
+    target_link_libraries(opendcad_viewer PRIVATE OpenGL::GL)
   endif()
 
   target_compile_features(opendcad_viewer PRIVATE cxx_std_20)
-  target_compile_options(opendcad_viewer PRIVATE -Wall -Wextra -Wpedantic)
-  link_occt(opendcad_viewer)
+  target_compile_options(opendcad_viewer PRIVATE -Wall -Wextra -Wpedantic -O2)
 else()
   message(STATUS "GLFW not found — skipping opendcad_viewer")
 endif()
