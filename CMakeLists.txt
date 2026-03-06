@@ -15,7 +15,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # OpenCascade — prefer imported component targets; otherwise fall back to legacy vars
 # --------------------------------------------------------------------------------------
 set(_occt_components
-  TKernel TKMath TKG2d TKG3d TKGeomBase TKGeomAlgo TKBRep TKTopAlgo TKSTL
+  TKernel TKMath TKG2d TKG3d TKGeomBase TKGeomAlgo TKBRep TKTopAlgo TKSTL TKMesh
   TKPrim TKBO TKFillet TKOffset TKShHealing
   TKSTEP TKSTEPBase TKSTEPAttr TKXSBase
   TKLCAF TKCAF TKCDF TKXCAF TKDESTEP
@@ -39,6 +39,7 @@ function(link_occt target)
       OpenCASCADE::TKBRep
       OpenCASCADE::TKTopAlgo
       OpenCASCADE::TKSTL
+      OpenCASCADE::TKMesh
       OpenCASCADE::TKPrim
       OpenCASCADE::TKBO
       OpenCASCADE::TKFillet
@@ -267,6 +268,8 @@ add_executable(opendcad_tests
   tests/test_face_modeling.cpp
   tests/test_metadata_export.cpp
   tests/test_cli.cpp
+  tests/test_tessellator.cpp
+  src/viewer/Tessellator.cpp
   ${OPENDCAD_LIB_SOURCES}
 )
 
@@ -277,6 +280,7 @@ target_include_directories(opendcad_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src/parser
   ${CMAKE_SOURCE_DIR}/src/export
   ${CMAKE_SOURCE_DIR}/src/cli
+  ${CMAKE_SOURCE_DIR}/src/viewer
   ${GEN_DIR}
 )
 
