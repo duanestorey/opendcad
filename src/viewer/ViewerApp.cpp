@@ -6,8 +6,19 @@
 #include "Camera.h"
 #include "GridMesh.h"
 #include "ShaderProgram.h"
+#include "Renderer.h"
+#include "RenderScene.h"
+
+// ANTLR + evaluator includes (for loadDcad)
+#include "antlr4-runtime.h"
+#include "OpenDCADLexer.h"
+#include "OpenDCADParser.h"
+#include "Evaluator.h"
+#include "ShapeRegistry.h"
+#include "Debug.h"
 
 #include <cstdio>
+#include <fstream>
 
 namespace opendcad {
 
@@ -55,6 +66,8 @@ void ViewerApp::glfwErrorCallback(int code, const char* desc) {
 ViewerApp::ViewerApp() = default;
 
 ViewerApp::~ViewerApp() {
+    scene_.reset();
+    renderer_.reset();
     grid_.reset();
     gridShader_.reset();
     camera_.reset();
@@ -177,18 +190,35 @@ bool ViewerApp::init(int width, int height) {
         if (action != GLFW_PRESS) return;
         auto* self = static_cast<ViewerApp*>(glfwGetWindowUserPointer(w));
         switch (key) {
-            case GLFW_KEY_F:
+            case GLFW_KEY_F: {
+                // Fit to scene bounds if we have a scene, otherwise default
+                float smin[3] = {-50.0f, -50.0f, -50.0f};
+                float smax[3] = { 50.0f,  50.0f,  50.0f};
+                if (self->scene_ && !self->scene_->objects().empty()) {
+                    self->scene_->sceneBounds(smin, smax);
+                }
                 self->camera_->fitToBounds(
-                    -50.0f, -50.0f, -50.0f,
-                     50.0f,  50.0f,  50.0f,
+                    smin[0], smin[1], smin[2],
+                    smax[0], smax[1], smax[2],
                     self->fbWidth_, self->fbHeight_
                 );
                 break;
+            }
             case GLFW_KEY_SPACE:
                 self->camera_->reset(self->fbWidth_, self->fbHeight_);
                 break;
             case GLFW_KEY_I:
                 self->camera_->setIsometric(self->fbWidth_, self->fbHeight_);
+                break;
+            case GLFW_KEY_E:
+                if (self->renderer_) {
+                    self->renderer_->setEdgesVisible(!self->renderer_->edgesVisible());
+                }
+                break;
+            case GLFW_KEY_G:
+                if (self->renderer_) {
+                    self->renderer_->setGridVisible(!self->renderer_->gridVisible());
+                }
                 break;
             case GLFW_KEY_ESCAPE:
                 glfwSetWindowShouldClose(w, GLFW_TRUE);
@@ -228,6 +258,29 @@ bool ViewerApp::init(int width, int height) {
     camera_->setIsometric(fbWidth_, fbHeight_);
 
     // -----------------------------------------------------------------------
+    // Initialize PBR renderer
+    // -----------------------------------------------------------------------
+    renderer_ = std::make_unique<Renderer>();
+    if (!renderer_->init()) {
+        std::fprintf(stderr, "Failed to initialize renderer\n");
+        return false;
+    }
+    scene_ = std::make_unique<RenderScene>();
+
+    // -----------------------------------------------------------------------
+    // Load input file if provided
+    // -----------------------------------------------------------------------
+    if (!inputFile_.empty()) {
+        loadDcad(inputFile_);
+
+        // Fit camera to scene bounds
+        float smin[3], smax[3];
+        scene_->sceneBounds(smin, smax);
+        camera_->setBounds(smin[0], smin[1], smin[2], smax[0], smax[1], smax[2]);
+        camera_->setIsometric(fbWidth_, fbHeight_);
+    }
+
+    // -----------------------------------------------------------------------
     // GL state
     // -----------------------------------------------------------------------
     glEnable(GL_DEPTH_TEST);
@@ -239,7 +292,78 @@ bool ViewerApp::init(int width, int height) {
 }
 
 // ---------------------------------------------------------------------------
-// run() — main loop
+// loadDcad() — parse and evaluate a .dcad script, populate the scene
+// ---------------------------------------------------------------------------
+
+bool ViewerApp::loadDcad(const std::string& path) {
+    // Suppress debug output in the viewer
+    debugQuiet() = true;
+
+    // Read file
+    std::ifstream file(path);
+    if (!file) {
+        std::fprintf(stderr, "Cannot open: %s\n", path.c_str());
+        return false;
+    }
+    std::string src((std::istreambuf_iterator<char>(file)),
+                     std::istreambuf_iterator<char>());
+
+    // Parse
+    antlr4::ANTLRInputStream input(src);
+    OpenDCAD::OpenDCADLexer lexer(&input);
+    antlr4::CommonTokenStream tokens(&lexer);
+    OpenDCAD::OpenDCADParser parser(&tokens);
+    auto* tree = parser.program();
+
+    if (parser.getNumberOfSyntaxErrors() > 0) {
+        std::fprintf(stderr, "Syntax errors in %s\n", path.c_str());
+        return false;
+    }
+
+    // Register shape factories and evaluate
+    ShapeRegistry::instance().registerDefaults();
+    Evaluator evaluator;
+    try {
+        evaluator.evaluate(tree, path);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "Error evaluating %s: %s\n", path.c_str(), e.what());
+        return false;
+    }
+
+    // Load exports into scene
+    scene_->clear();
+    for (const auto& entry : evaluator.exports()) {
+        for (const auto& shape : entry.shapes) {
+            float color[3] = {0.72f, 0.78f, 0.86f};  // default steel-blue
+            float metallic = 0.0f, roughness = 0.5f;
+
+            if (shape->color()) {
+                color[0] = static_cast<float>(shape->color()->r);
+                color[1] = static_cast<float>(shape->color()->g);
+                color[2] = static_cast<float>(shape->color()->b);
+            }
+            if (shape->material()) {
+                metallic = static_cast<float>(shape->material()->metallic);
+                roughness = static_cast<float>(shape->material()->roughness);
+                if (shape->material()->baseColor) {
+                    color[0] = static_cast<float>(shape->material()->baseColor->r);
+                    color[1] = static_cast<float>(shape->material()->baseColor->g);
+                    color[2] = static_cast<float>(shape->material()->baseColor->b);
+                }
+            }
+
+            scene_->addShape(entry.name, shape->getShape(),
+                           color, metallic, roughness, shape->tags());
+        }
+    }
+
+    std::printf("Loaded %zu export(s) from %s\n",
+                evaluator.exports().size(), path.c_str());
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// run() -- main loop
 // ---------------------------------------------------------------------------
 
 int ViewerApp::run() {
@@ -248,10 +372,6 @@ int ViewerApp::run() {
 
         glfwGetFramebufferSize(window_, &fbWidth_, &fbHeight_);
         glViewport(0, 0, fbWidth_, fbHeight_);
-
-        // Dark background
-        glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         render();
 
@@ -266,8 +386,16 @@ int ViewerApp::run() {
 // ---------------------------------------------------------------------------
 
 void ViewerApp::render() {
-    Mat4 mvp = camera_->viewProjectionMatrix(fbWidth_, fbHeight_);
-    grid_->draw(*gridShader_, mvp.m);
+    if (renderer_ && scene_) {
+        renderer_->renderFrame(*camera_, *scene_, *grid_, *gridShader_,
+                              fbWidth_, fbHeight_);
+    } else {
+        // Fallback: just draw grid
+        glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        Mat4 mvp = camera_->viewProjectionMatrix(fbWidth_, fbHeight_);
+        grid_->draw(*gridShader_, mvp.m);
+    }
 }
 
 // ---------------------------------------------------------------------------

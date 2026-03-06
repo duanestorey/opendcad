@@ -10,6 +10,8 @@ namespace opendcad {
 class Camera;
 class GridMesh;
 class ShaderProgram;
+class Renderer;
+class RenderScene;
 
 class ViewerApp {
 public:
@@ -20,6 +22,12 @@ public:
     int run();
     void setTitle(const std::string& title);
 
+    /// Load and evaluate a .dcad script, populate scene with exports.
+    bool loadDcad(const std::string& path);
+
+    /// Set input file to load on init.
+    void setInputFile(const std::string& path) { inputFile_ = path; }
+
 private:
     void render();
     static void glfwErrorCallback(int code, const char* desc);
@@ -28,6 +36,9 @@ private:
     std::unique_ptr<Camera> camera_;
     std::unique_ptr<GridMesh> grid_;
     std::unique_ptr<ShaderProgram> gridShader_;
+    std::unique_ptr<Renderer> renderer_;
+    std::unique_ptr<RenderScene> scene_;
+    std::string inputFile_;
 
     int fbWidth_ = 1280;
     int fbHeight_ = 800;

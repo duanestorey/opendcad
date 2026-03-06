@@ -219,15 +219,28 @@ if(GLFW_FOUND)
     src/viewer/Camera.cpp
     src/viewer/ShaderProgram.cpp
     src/viewer/GridMesh.cpp
+    src/viewer/Renderer.cpp
+    src/viewer/RenderScene.cpp
+    src/viewer/Tessellator.cpp
+    ${OPENDCAD_LIB_SOURCES}
   )
+
+  target_sources(opendcad_viewer PRIVATE ${GENERATED_SOURCES})
+  add_dependencies(opendcad_viewer generate_antlr)
 
   target_include_directories(opendcad_viewer PRIVATE
     ${CMAKE_SOURCE_DIR}/src/viewer
+    ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/core
     ${CMAKE_SOURCE_DIR}/src/geometry
+    ${CMAKE_SOURCE_DIR}/src/parser
+    ${CMAKE_SOURCE_DIR}/src/export
+    ${CMAKE_SOURCE_DIR}/src/cli
+    ${GEN_DIR}
   )
 
-  target_link_libraries(opendcad_viewer PRIVATE glad PkgConfig::GLFW)
+  target_link_libraries(opendcad_viewer PRIVATE glad PkgConfig::GLFW antlr4_shared)
+  link_occt(opendcad_viewer)
 
   if (APPLE)
     target_link_libraries(opendcad_viewer PRIVATE
