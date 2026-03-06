@@ -9,6 +9,7 @@ class ShaderProgram;
 class Camera;
 class GridMesh;
 class RenderScene;
+class EnvironmentMap;
 
 class Renderer {
 public:
@@ -80,6 +81,9 @@ private:
     // Studio lighting: 3 directional lights
     float lightDirs_[3][3];
     float lightColors_[3][3];
+
+    // --- IBL environment map ---
+    std::unique_ptr<EnvironmentMap> envMap_;
 
     bool edgesVisible_ = true;
     bool gridVisible_ = true;

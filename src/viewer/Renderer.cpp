@@ -1,6 +1,7 @@
 #include "ShaderProgram.h"  // must come first — includes <glad/glad.h>
 #include "Renderer.h"
 #include "Camera.h"
+#include "EnvironmentMap.h"
 #include "GridMesh.h"
 #include "RenderScene.h"
 
@@ -190,6 +191,12 @@ uniform int uHighlightFace;
 uniform vec3 uHighlightColor;
 uniform sampler2D uFaceIDTex;
 
+// IBL textures
+uniform samplerCube uIrradianceMap;
+uniform samplerCube uPrefilteredMap;
+uniform sampler2D uBrdfLUT;
+uniform bool uUseIBL;
+
 const float PI = 3.14159265359;
 
 float distributionGGX(vec3 N, vec3 H, float roughness) {
@@ -212,6 +219,11 @@ float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) *
+           pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 void main() {
@@ -250,7 +262,27 @@ void main() {
         Lo += (kD * albedo / PI + specular) * uLightColor[i] * NdotL;
     }
 
-    vec3 ambient = 0.15 * albedo * ao;  // AO modulates ambient
+    // Ambient lighting: IBL or constant fallback
+    vec3 ambient;
+    if (uUseIBL) {
+        // Diffuse IBL
+        vec3 F_ibl = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+        vec3 kD_ibl = (vec3(1.0) - F_ibl) * (1.0 - metallic);
+        vec3 irradiance = texture(uIrradianceMap, N).rgb;
+        vec3 diffuseIBL = kD_ibl * irradiance * albedo;
+
+        // Specular IBL
+        vec3 R = reflect(-V, N);
+        float maxLod = 4.0;
+        vec3 prefilteredColor = textureLod(uPrefilteredMap, R, roughness * maxLod).rgb;
+        vec2 brdf = texture(uBrdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+        vec3 specularIBL = prefilteredColor * (F0 * brdf.x + brdf.y);
+
+        ambient = (diffuseIBL + specularIBL) * ao;
+    } else {
+        ambient = 0.15 * albedo * ao;
+    }
+
     vec3 color = ambient + Lo;
 
     // Face highlight
@@ -510,6 +542,15 @@ bool Renderer::init() {
     // Build fullscreen quad (shared by post-processing passes)
     // -----------------------------------------------------------------------
     buildFullscreenQuad();
+
+    // -----------------------------------------------------------------------
+    // IBL environment map (procedural studio lighting)
+    // -----------------------------------------------------------------------
+    envMap_ = std::make_unique<EnvironmentMap>();
+    if (!envMap_->init()) {
+        std::fprintf(stderr, "Warning: IBL init failed, using ambient fallback\n");
+        envMap_.reset();
+    }
 
     // -----------------------------------------------------------------------
     // Studio lighting: 3 directional lights
@@ -901,6 +942,25 @@ void Renderer::lightingPass(const Camera& camera, int /*viewportW*/, int /*viewp
     // Face highlight
     lightingShader_->setInt("uHighlightFace", highlightFace_);
     lightingShader_->setVec3("uHighlightColor", 0.3f, 0.7f, 1.0f);
+
+    // IBL textures
+    if (envMap_ && envMap_->irradianceMap()) {
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, envMap_->irradianceMap());
+        lightingShader_->setInt("uIrradianceMap", 5);
+
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, envMap_->prefilteredMap());
+        lightingShader_->setInt("uPrefilteredMap", 6);
+
+        glActiveTexture(GL_TEXTURE7);
+        glBindTexture(GL_TEXTURE_2D, envMap_->brdfLUT());
+        lightingShader_->setInt("uBrdfLUT", 7);
+
+        lightingShader_->setInt("uUseIBL", 1);
+    } else {
+        lightingShader_->setInt("uUseIBL", 0);
+    }
 
     drawFullscreenQuad();
 

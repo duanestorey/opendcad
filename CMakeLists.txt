@@ -222,6 +222,7 @@ if(GLFW_FOUND)
     src/viewer/Renderer.cpp
     src/viewer/RenderScene.cpp
     src/viewer/Tessellator.cpp
+    src/viewer/EnvironmentMap.cpp
     ${OPENDCAD_LIB_SOURCES}
   )
 
