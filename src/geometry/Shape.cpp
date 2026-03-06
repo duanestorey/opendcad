@@ -231,7 +231,9 @@ ShapePtr Shape::fuse( const ShapePtr &part ) {
     fuse.Build();
     if (!fuse.IsDone())
         throw GeometryError("fuse operation failed");
-    return std::make_shared<Shape>( fuse.Shape() );
+    auto result = std::make_shared<Shape>( fuse.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::cut( const ShapePtr &part ) {
@@ -241,7 +243,9 @@ ShapePtr Shape::cut( const ShapePtr &part ) {
     cut.Build();
     if (!cut.IsDone())
         throw GeometryError("cut operation failed");
-    return std::make_shared<Shape>( cut.Shape() );
+    auto result = std::make_shared<Shape>( cut.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::intersect( const ShapePtr &part ) const {
@@ -251,7 +255,9 @@ ShapePtr Shape::intersect( const ShapePtr &part ) const {
     common.Build();
     if (!common.IsDone())
         throw GeometryError("intersect operation failed");
-    return std::make_shared<Shape>( common.Shape() );
+    auto result = std::make_shared<Shape>( common.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 // =============================================================================
@@ -266,7 +272,9 @@ ShapePtr Shape::fillet( double amount ) const {
     mk.Build();
     if (!mk.IsDone())
         throw GeometryError("fillet operation failed");
-    return std::make_shared<Shape>( mk.Shape() );
+    auto result = std::make_shared<Shape>( mk.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::chamfer( double distance ) const {
@@ -279,7 +287,9 @@ ShapePtr Shape::chamfer( double distance ) const {
     mk.Build();
     if (!mk.IsDone())
         throw GeometryError("chamfer operation failed");
-    return std::make_shared<Shape>( mk.Shape() );
+    auto result = std::make_shared<Shape>( mk.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 // =============================================================================
@@ -289,14 +299,18 @@ ShapePtr Shape::chamfer( double distance ) const {
 ShapePtr Shape::flip() const {
     gp_Trsf mirror;
     mirror.SetMirror(gp::XOY());
-    return std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, mirror, true).Shape());
+    auto result = std::make_shared<Shape>(BRepBuilderAPI_Transform(mShape, mirror, true).Shape());
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::translate( double x, double y, double z ) {
     gp_Trsf tr;
     tr.SetTranslation( gp_Vec(x, y, z) );
     TopLoc_Location loc(tr);
-    return std::make_shared<Shape>( mShape.Moved( loc ) );
+    auto result = std::make_shared<Shape>( mShape.Moved( loc ) );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::rotate( double xAngle, double yAngle, double zAngle ) const {
@@ -306,7 +320,9 @@ ShapePtr Shape::rotate( double xAngle, double yAngle, double zAngle ) const {
     rotY.SetRotation(gp::OY(), yAngle * toRad);
     rotZ.SetRotation(gp::OZ(), zAngle * toRad);
     gp_Trsf trsf = rotZ * rotY * rotX;
-    return std::make_shared<Shape>( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() );
+    auto result = std::make_shared<Shape>( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::scale( double factor ) const {
@@ -315,7 +331,9 @@ ShapePtr Shape::scale( double factor ) const {
     BRepBuilderAPI_Transform xform(mShape, trsf, true);
     if (!xform.IsDone())
         throw GeometryError("scale operation failed");
-    return std::make_shared<Shape>( xform.Shape() );
+    auto result = std::make_shared<Shape>( xform.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::scale( double fx, double fy, double fz ) const {
@@ -326,14 +344,18 @@ ShapePtr Shape::scale( double fx, double fy, double fz ) const {
     BRepBuilderAPI_GTransform xform(mShape, gtrsf, true);
     if (!xform.IsDone())
         throw GeometryError("non-uniform scale operation failed");
-    return std::make_shared<Shape>( xform.Shape() );
+    auto result = std::make_shared<Shape>( xform.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::mirror( double nx, double ny, double nz ) const {
     gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(nx, ny, nz));
     gp_Trsf trsf;
     trsf.SetMirror(ax);
-    return std::make_shared<Shape>( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() );
+    auto result = std::make_shared<Shape>( BRepBuilderAPI_Transform(mShape, trsf, true).Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::placeCorners( ShapePtr shape, double xOffset, double yOffset ) {
@@ -341,6 +363,7 @@ ShapePtr Shape::placeCorners( ShapePtr shape, double xOffset, double yOffset ) {
     newShape = newShape->fuse( shape->translate( xOffset, -yOffset ) );
     newShape = newShape->fuse( shape->translate( -xOffset, yOffset ) );
     newShape = newShape->fuse( shape->translate( -xOffset, -yOffset ) );
+    copyMetaTo(newShape);
     return newShape;
 }
 
@@ -354,7 +377,9 @@ ShapePtr Shape::linearExtrude( double height ) const {
     prism.Build();
     if (!prism.IsDone())
         throw GeometryError("linear_extrude operation failed");
-    return std::make_shared<Shape>( prism.Shape() );
+    auto result = std::make_shared<Shape>( prism.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::rotateExtrude( double angleDeg ) const {
@@ -377,7 +402,9 @@ ShapePtr Shape::rotateExtrude( double angleDeg ) const {
             result = solidMaker.Shape();
     }
 
-    return std::make_shared<Shape>( result );
+    auto resultShape = std::make_shared<Shape>( result );
+    copyMetaTo(resultShape);
+    return resultShape;
 }
 
 ShapePtr Shape::sweep( const ShapePtr& pathShape ) const {
@@ -391,7 +418,9 @@ ShapePtr Shape::sweep( const ShapePtr& pathShape ) const {
     pipe.Build();
     if (!pipe.IsDone())
         throw GeometryError("sweep operation failed");
-    return std::make_shared<Shape>( pipe.Shape() );
+    auto resultShape = std::make_shared<Shape>( pipe.Shape() );
+    copyMetaTo(resultShape);
+    return resultShape;
 }
 
 // =============================================================================
@@ -430,7 +459,9 @@ ShapePtr Shape::shell( double thickness ) const {
     if (!hollower.IsDone())
         throw GeometryError("shell operation failed");
 
-    return std::make_shared<Shape>( hollower.Shape() );
+    auto result = std::make_shared<Shape>( hollower.Shape() );
+    copyMetaTo(result);
+    return result;
 }
 
 // =============================================================================
@@ -438,10 +469,14 @@ ShapePtr Shape::shell( double thickness ) const {
 // =============================================================================
 
 ShapePtr Shape::linearPattern(double dx, double dy, double dz, int count) const {
-    if (count <= 1)
-        return std::make_shared<Shape>(mShape);
+    if (count <= 1) {
+        auto result = std::make_shared<Shape>(mShape);
+        copyMetaTo(result);
+        return result;
+    }
 
     auto result = std::make_shared<Shape>(mShape);
+    copyMetaTo(result);
     for (int i = 1; i < count; ++i) {
         gp_Trsf tr;
         tr.SetTranslation(gp_Vec(dx * i, dy * i, dz * i));
@@ -452,14 +487,18 @@ ShapePtr Shape::linearPattern(double dx, double dy, double dz, int count) const 
 }
 
 ShapePtr Shape::circularPattern(double ax, double ay, double az, int count, double angleDeg) const {
-    if (count <= 1)
-        return std::make_shared<Shape>(mShape);
+    if (count <= 1) {
+        auto result = std::make_shared<Shape>(mShape);
+        copyMetaTo(result);
+        return result;
+    }
 
     double totalRad = angleDeg * M_PI / 180.0;
     double stepAngle = totalRad / count;
     gp_Ax1 axis(gp::Origin(), gp_Dir(ax, ay, az));
 
     auto result = std::make_shared<Shape>(mShape);
+    copyMetaTo(result);
     for (int i = 1; i < count; ++i) {
         gp_Trsf tr;
         tr.SetRotation(axis, stepAngle * i);
@@ -472,6 +511,7 @@ ShapePtr Shape::circularPattern(double ax, double ay, double az, int count, doub
 ShapePtr Shape::mirrorFeature(double nx, double ny, double nz) const {
     auto mirrored = mirror(nx, ny, nz);
     auto self = std::make_shared<Shape>(mShape);
+    copyMetaTo(self);
     return self->fuse(mirrored);
 }
 
@@ -506,7 +546,9 @@ ShapePtr Shape::draft(double angleDeg, double nx, double ny, double nz) const {
     if (!draftMaker.IsDone())
         throw GeometryError("draft operation failed");
 
-    return std::make_shared<Shape>(draftMaker.Shape());
+    auto result = std::make_shared<Shape>(draftMaker.Shape());
+    copyMetaTo(result);
+    return result;
 }
 
 ShapePtr Shape::splitAt(double px, double py, double pz, double nx, double ny, double nz) const {
@@ -549,7 +591,9 @@ ShapePtr Shape::splitAt(double px, double py, double pz, double nx, double ny, d
     if (bestPiece.IsNull())
         throw GeometryError("splitAt: no solid piece found after split");
 
-    return std::make_shared<Shape>(bestPiece);
+    auto result = std::make_shared<Shape>(bestPiece);
+    copyMetaTo(result);
+    return result;
 }
 
 // =============================================================================

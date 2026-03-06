@@ -332,4 +332,4 @@ target_sources(opendcad_tests PRIVATE ${GENERATED_SOURCES})
 add_dependencies(opendcad_tests generate_antlr)
 
 include(GoogleTest)
-gtest_discover_tests(opendcad_tests)
+gtest_discover_tests(opendcad_tests DISCOVERY_TIMEOUT 30)

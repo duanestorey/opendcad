@@ -112,6 +112,13 @@ public:
     }
     const std::vector<std::string>& tags() const { return tags_; }
 
+    // Copy color/material/tags from this shape onto another
+    void copyMetaTo(ShapePtr target) const {
+        if (color_) target->setColor(color_);
+        if (material_) target->setMaterial(material_);
+        for (const auto& t : tags_) target->addTag(t);
+    }
+
 private:
     TopoDS_Shape mShape;
     ColorPtr color_;
