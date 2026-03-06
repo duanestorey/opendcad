@@ -18,6 +18,7 @@ class PropertiesPanel;
 class MaterialPanel;
 class MenuBar;
 class ViewportOverlay;
+class FileWatcher;
 
 class ViewerApp {
 public:
@@ -31,8 +32,14 @@ public:
     /// Load and evaluate a .dcad script, populate scene with exports.
     bool loadDcad(const std::string& path);
 
+    /// Load a STEP file (with optional JSON sidecar) into the scene.
+    bool loadStep(const std::string& path);
+
     /// Set input file to load on init.
     void setInputFile(const std::string& path) { inputFile_ = path; }
+
+    /// Take a screenshot and save to a timestamped PNG file.
+    void takeScreenshot();
 
 private:
     void render();
@@ -64,6 +71,10 @@ private:
     std::unique_ptr<ViewportOverlay> viewportOverlay_;
     int selectedObject_ = -1;
     bool imguiInitialized_ = false;
+
+    // File watcher for hot reload
+    std::unique_ptr<FileWatcher> fileWatcher_;
+    std::string watchStatus_ = "Ready";
 };
 
 } // namespace opendcad

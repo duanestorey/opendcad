@@ -27,8 +27,15 @@
 #include "ShapeRegistry.h"
 #include "Debug.h"
 
+#include "StepLoader.h"
+#include "FileWatcher.h"
+#include "Screenshot.h"
+
 #include <cstdio>
 #include <fstream>
+#include <algorithm>
+#include <chrono>
+#include <ctime>
 
 namespace opendcad {
 
@@ -80,6 +87,9 @@ ViewerApp::~ViewerApp() {
         ImGuiSetup::shutdown();
         imguiInitialized_ = false;
     }
+
+    // Reset file watcher
+    fileWatcher_.reset();
 
     // Reset UI panels before GL context is destroyed
     objectPanel_.reset();
@@ -212,10 +222,17 @@ bool ViewerApp::init(int width, int height) {
     });
 
     // Key
-    glfwSetKeyCallback(window_, [](GLFWwindow* w, int key, int /*scancode*/, int action, int /*mods*/) {
+    glfwSetKeyCallback(window_, [](GLFWwindow* w, int key, int /*scancode*/, int action, int mods) {
         if (ImGui::GetIO().WantCaptureKeyboard) return;
         if (action != GLFW_PRESS) return;
         auto* self = static_cast<ViewerApp*>(glfwGetWindowUserPointer(w));
+
+        // Ctrl+S: screenshot
+        if (key == GLFW_KEY_S && (mods & GLFW_MOD_CONTROL)) {
+            self->takeScreenshot();
+            return;
+        }
+
         switch (key) {
             case GLFW_KEY_F: {
                 // Fit to scene bounds if we have a scene, otherwise default
@@ -312,13 +329,32 @@ bool ViewerApp::init(int width, int height) {
     // Load input file if provided
     // -----------------------------------------------------------------------
     if (!inputFile_.empty()) {
-        loadDcad(inputFile_);
+        // Determine file type by extension
+        std::string ext = inputFile_;
+        auto dotPos = ext.rfind('.');
+        if (dotPos != std::string::npos) {
+            ext = ext.substr(dotPos);
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        } else {
+            ext.clear();
+        }
+
+        if (ext == ".step" || ext == ".stp") {
+            loadStep(inputFile_);
+        } else {
+            loadDcad(inputFile_);
+        }
 
         // Fit camera to scene bounds
         float smin[3], smax[3];
         scene_->sceneBounds(smin, smax);
         camera_->setBounds(smin[0], smin[1], smin[2], smax[0], smax[1], smax[2]);
         camera_->setIsometric(fbWidth_, fbHeight_);
+
+        // Start watching the input file for hot reload
+        fileWatcher_ = std::make_unique<FileWatcher>();
+        fileWatcher_->watch(inputFile_);
+        watchStatus_ = "Watching";
     }
 
     // -----------------------------------------------------------------------
@@ -404,12 +440,59 @@ bool ViewerApp::loadDcad(const std::string& path) {
 }
 
 // ---------------------------------------------------------------------------
+// loadStep() — load a STEP file with optional JSON sidecar
+// ---------------------------------------------------------------------------
+
+bool ViewerApp::loadStep(const std::string& path) {
+    auto entries = StepLoader::load(path);
+    scene_->clear();
+    for (const auto& entry : entries) {
+        scene_->addShape(entry.name, entry.shape,
+                        entry.color, entry.metallic, entry.roughness, entry.tags);
+    }
+    return !entries.empty();
+}
+
+// ---------------------------------------------------------------------------
 // run() -- main loop
 // ---------------------------------------------------------------------------
 
 int ViewerApp::run() {
     while (!glfwWindowShouldClose(window_)) {
         glfwPollEvents();
+
+        // --- File watcher: hot reload ---
+        if (fileWatcher_ && fileWatcher_->poll()) {
+            watchStatus_ = "Reloading...";
+            try {
+                // Determine file type
+                std::string ext = inputFile_;
+                auto dotPos = ext.rfind('.');
+                if (dotPos != std::string::npos) {
+                    ext = ext.substr(dotPos);
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                } else {
+                    ext.clear();
+                }
+
+                bool ok = false;
+                if (ext == ".step" || ext == ".stp") {
+                    ok = loadStep(inputFile_);
+                } else {
+                    ok = loadDcad(inputFile_);
+                }
+
+                if (ok && scene_ && !scene_->objects().empty()) {
+                    float smin[3], smax[3];
+                    scene_->sceneBounds(smin, smax);
+                    camera_->setBounds(smin[0], smin[1], smin[2],
+                                       smax[0], smax[1], smax[2]);
+                }
+                watchStatus_ = ok ? "Watching" : "Error (keeping last state)";
+            } catch (...) {
+                watchStatus_ = "Error (keeping last state)";
+            }
+        }
 
         glfwGetFramebufferSize(window_, &fbWidth_, &fbHeight_);
         glViewport(0, 0, fbWidth_, fbHeight_);
@@ -435,6 +518,11 @@ int ViewerApp::run() {
         }
         if (actions.isometric) camera_->setIsometric(fbWidth_, fbHeight_);
 
+        // Screenshot (menu or Ctrl+S hotkey)
+        if (actions.screenshot) {
+            takeScreenshot();
+        }
+
         // Panels
         objectPanel_->draw(*scene_, selectedObject_);
         layerPanel_->draw(*scene_);
@@ -445,7 +533,7 @@ int ViewerApp::run() {
         }
         propertiesPanel_->draw(sel);
         materialPanel_->draw(sel);
-        viewportOverlay_->draw(*scene_, inputFile_, "Ready");
+        viewportOverlay_->draw(*scene_, inputFile_, watchStatus_);
 
         ImGuiSetup::endFrame();
 
@@ -480,6 +568,25 @@ void ViewerApp::setTitle(const std::string& title) {
     if (window_) {
         glfwSetWindowTitle(window_, title.c_str());
     }
+}
+
+// ---------------------------------------------------------------------------
+// takeScreenshot() — capture framebuffer to a timestamped PNG
+// ---------------------------------------------------------------------------
+
+void ViewerApp::takeScreenshot() {
+    // Generate timestamped filename
+    auto now = std::chrono::system_clock::now();
+    auto tt = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    localtime_r(&tt, &tm);
+    char filename[128];
+    std::snprintf(filename, sizeof(filename),
+                  "opendcad_screenshot_%04d%02d%02d_%02d%02d%02d.png",
+                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                  tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+    Screenshot::capture(fbWidth_, fbHeight_, filename);
 }
 
 } // namespace opendcad
